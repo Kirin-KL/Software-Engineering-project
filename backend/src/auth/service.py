@@ -1,9 +1,10 @@
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, List
 from jose import JWTError, jwt
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
 
 from os import getenv
 from dotenv import load_dotenv
@@ -20,6 +21,48 @@ if not JWT_KEY:
 class UserService(BaseService):
     model = User
     
+    async def create(self, email: str, username: str, hashed_password: str) -> User:
+        """
+        Создание нового пользователя.
+        
+        Args:
+            email (str): Email пользователя
+            username (str): Username пользователя
+            hashed_password (str): Хешированный пароль
+            
+        Returns:
+            User: Созданный пользователь
+            
+        Raises:
+            HTTPException: Если пользователь с таким email или username уже существует
+        """
+        try:
+            user = User(
+                email=email,
+                username=username,
+                hashed_password=hashed_password
+            )
+            self.session.add(user)
+            await self.session.commit()
+            await self.session.refresh(user)
+            return user
+        except IntegrityError as e:
+            await self.session.rollback()
+            if "ix_users_username" in str(e):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Пользователь с таким именем пользователя уже существует"
+                )
+            elif "ix_users_email" in str(e):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Пользователь с таким email уже существует"
+                )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Ошибка при создании пользователя"
+            )
+
     @classmethod
     async def get_user_by_id(cls, user_id: int) -> Optional[User]:
         """
@@ -133,3 +176,14 @@ class UserService(BaseService):
             raise credentials_exception
             
         return user
+
+    async def get_all(self) -> List[User]:
+        """
+        Получение списка всех пользователей.
+        
+        Returns:
+            List[User]: Список всех пользователей
+        """
+        query = select(self.model)
+        result = await self.session.execute(query)
+        return result.scalars().all()

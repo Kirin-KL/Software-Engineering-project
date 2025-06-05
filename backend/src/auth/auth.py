@@ -37,7 +37,7 @@ async def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 async def authenticate_user(email: EmailStr, password: str):
     try:
-        user = await UserService.find_one_or_none(email=email)
+        user = await UserService.get_user_by_email(email)
         if not user or not await verify_password(password, user.hashed_password):
             return None
         return user

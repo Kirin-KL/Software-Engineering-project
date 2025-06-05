@@ -1,0 +1,18 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Установка pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# Копирование файлов package.json и pnpm-lock.yaml
+COPY package.json pnpm-lock.yaml ./
+
+# Установка зависимостей
+RUN pnpm install
+
+# Копирование остальных файлов проекта
+COPY . .
+
+# Запуск в режиме разработки
+CMD ["pnpm", "dev"] 

@@ -1,16 +1,18 @@
 from fastapi import APIRouter, HTTPException, status, Response, Depends
 from fastapi.responses import JSONResponse
+from typing import List
 
 from src.auth.auth import authenticate_user, create_access_token, get_password_hash, verify_password
 from src.auth.schemas import SUserAuth, SUserCreate, SUserUpdate, SUserResponse
 from src.auth.service import UserService
 from src.auth.dependencies import get_current_user
+from src.database import async_session_maker
 
 router = APIRouter()
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 async def register_user(user_data: SUserCreate) -> JSONResponse:
-    existing_user = await UserService.find_one_or_none(email=user_data.email)
+    existing_user = await UserService.get_user_by_email(user_data.email)
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -18,10 +20,14 @@ async def register_user(user_data: SUserCreate) -> JSONResponse:
         )
     
     hashed_password = await get_password_hash(user_data.password)
-    user = await UserService.add(
-        email=user_data.email,
-        hashed_password=hashed_password,
-    )
+    async with async_session_maker() as session:
+        user = UserService(session)
+        new_user = await user.create(
+            email=user_data.email,
+            username=user_data.username,
+            hashed_password=hashed_password,
+        )
+    
     return JSONResponse(
         status_code=status.HTTP_201_CREATED,
         content={"message": "Пользователь успешно зарегистрирован"}
@@ -80,3 +86,16 @@ async def get_user_by_email(
     """
     user = await UserService.get_user_by_email_or_404(email)
     return user
+
+@router.get("/", response_model=List[SUserResponse])
+async def get_all_users(
+    current_user = Depends(get_current_user)
+) -> List[SUserResponse]:
+    """
+    Получение списка всех пользователей в системе.
+    Требуется авторизация.
+    """
+    async with async_session_maker() as session:
+        user = UserService(session)
+        users = await user.get_all()
+    return users

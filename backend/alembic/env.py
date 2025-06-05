@@ -6,6 +6,15 @@ from sqlalchemy import pool
 
 from alembic import context
 from src.auth.models import *
+from src.books.models import *
+from src.borrowings.models import *
+from src.categories.models import *
+from src.favorite.models import *
+from src.reviews.models import *
+from src.parsers.models import *
+from src.borrowings.models import *
+from src.application.models import *
+
 
 from src.database import DATABASE_URL, Base, load_env_file
 # from database import Base, DATABASE_URL

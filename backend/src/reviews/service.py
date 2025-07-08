@@ -4,12 +4,37 @@ from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.exc import IntegrityError
+import aiohttp
 
 from src.database import async_session_maker
 from src.service.base import BaseService
 from .models import Review, ReviewComment
 from .schemas import ReviewCreate, ReviewUpdate, ReviewCommentCreate, ReviewCommentUpdate
 from src.books.models import Book
+
+YANDEXGPT_API_KEY = "AQVNygJsT8ieIdMP2II93IBaQGqFEc4TtSNv_Fde"
+YANDEXGPT_CATALOG_ID = "b1ga7ksre0kdtgo7l27q"
+
+async def check_toxicity_yandexgpt(text: str) -> bool:
+    """
+    Проверяет текст на токсичность через YandexGPT. Возвращает True, если токсичен.
+    """
+    url = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
+    headers = {
+        "Authorization": f"Api-Key {YANDEXGPT_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    prompt = f"Проверь этот текст на токсичность. Ответь только 'TOXIC' если он токсичен, иначе 'OK'. Текст: {text}"
+    data = {
+        "modelUri": f"gpt://{YANDEXGPT_CATALOG_ID}/yandexgpt/latest",
+        "completionOptions": {"stream": False, "temperature": 0.1, "maxTokens": 20},
+        "messages": [{"role": "user", "text": prompt}]
+    }
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, headers=headers, json=data) as resp:
+            result = await resp.json()
+            answer = result.get("result", {}).get("alternatives", [{}])[0].get("message", {}).get("text", "")
+            return "TOXIC" in answer.upper()
 
 class ReviewService(BaseService):
     model = Review
@@ -33,6 +58,12 @@ class ReviewService(BaseService):
         """Создать новый отзыв."""
         async with async_session_maker() as session:
             try:
+                # Проверка токсичности
+                if await check_toxicity_yandexgpt(review_data.content):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Текст отзыва содержит токсичность. Пожалуйста, исправьте его."
+                    )
                 # Проверяем существование книги
                 book = await session.get(Book, review_data.book_id)
                 if not book:
@@ -57,7 +88,8 @@ class ReviewService(BaseService):
 
                 db_review = Review(
                     **review_data.model_dump(),
-                    user_id=user_id
+                    user_id=user_id,
+                    is_anonymous=int(getattr(review_data, 'is_anonymous', False))
                 )
                 session.add(db_review)
                 await session.flush()
@@ -213,6 +245,12 @@ class ReviewService(BaseService):
         comment_data: ReviewCommentCreate
     ) -> ReviewComment:
         async with async_session_maker() as session:
+            # Проверка токсичности
+            if await check_toxicity_yandexgpt(comment_data.content):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Текст комментария содержит токсичность. Пожалуйста, исправьте его."
+                )
             # Проверяем существование отзыва
             stmt = select(Review).where(Review.id == review_id)
             result = await session.execute(stmt)
@@ -226,7 +264,8 @@ class ReviewService(BaseService):
             comment = ReviewComment(
                 user_id=user_id,
                 review_id=review_id,
-                content=comment_data.content
+                content=comment_data.content,
+                is_anonymous=int(getattr(comment_data, 'is_anonymous', False))
             )
             session.add(comment)
             await session.flush()

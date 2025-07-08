@@ -47,6 +47,9 @@ export default function ReviewPage({ params }: PageProps) {
   const [editContent, setEditContent] = useState("")
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isAnonymous, setIsAnonymous] = useState(false)
+  const [toxicModalOpen, setToxicModalOpen] = useState(false)
+  const [toxicModalMessage, setToxicModalMessage] = useState("")
 
   useEffect(() => {
     const fetchData = async () => {
@@ -143,7 +146,7 @@ export default function ReviewPage({ params }: PageProps) {
 
     try {
       setSubmittingComment(true)
-      const newCommentData = await api.addComment(review.id, newComment)
+      const newCommentData = await api.addComment(review.id, newComment, isAnonymous)
       setNewComment("")
       
       // Refresh review to get updated comments
@@ -157,6 +160,13 @@ export default function ReviewPage({ params }: PageProps) {
       }
     } catch (err) {
       console.error("Error adding comment:", err)
+      if (err instanceof Error && err.message.includes("токсичность")) {
+        let msg = err.message
+        if (msg.startsWith('400: ')) msg = msg.slice(5)
+        setToxicModalMessage(msg)
+        setToxicModalOpen(true)
+        return
+      }
       alert("Не удалось добавить комментарий")
     } finally {
       setSubmittingComment(false)
@@ -391,24 +401,27 @@ export default function ReviewPage({ params }: PageProps) {
               <CardContent className="p-6">
                 <h3 className="text-lg font-semibold mb-4">Комментарии</h3>
 
-                <form onSubmit={handleCommentSubmit} className="mb-6">
-                  <div className="flex items-center space-x-2 mb-4">
-                    <Plus className="h-4 w-4" />
-                    <span className="text-sm font-medium">Новые</span>
-                  </div>
+                <form onSubmit={handleCommentSubmit} className="space-y-4">
                   <Textarea
                     value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
-                    placeholder="Написать комментарий..."
-                    className="w-full mb-4"
+                    onChange={e => setNewComment(e.target.value)}
+                    placeholder="Напишите комментарий..."
                     rows={3}
+                    className="w-full"
                   />
-                  <Button 
-                    type="submit" 
-                    className="bg-black hover:bg-gray-800 text-white"
-                    disabled={submittingComment}
-                  >
-                    {submittingComment ? "Отправка..." : "Отправить"}
+                  {/* Anonymous Checkbox */}
+                  <div className="flex items-center">
+                    <input
+                      id="isAnonymousComment"
+                      type="checkbox"
+                      checked={isAnonymous}
+                      onChange={e => setIsAnonymous(e.target.checked)}
+                      className="mr-2"
+                    />
+                    <label htmlFor="isAnonymousComment" className="text-sm text-gray-700">Опубликовать анонимно</label>
+                  </div>
+                  <Button type="submit" disabled={submittingComment || !newComment.trim()}>
+                    {submittingComment ? "Отправка..." : "Добавить комментарий"}
                   </Button>
                 </form>
 
@@ -424,7 +437,7 @@ export default function ReviewPage({ params }: PageProps) {
                           <div className="flex items-center space-x-2">
                             <MessageSquare className="h-4 w-4 text-gray-400" />
                             <span className="text-sm font-medium">
-                              {userCache[comment.user_id]?.username || "Загрузка..."}
+                              {comment.is_anonymous ? 'Аноним' : (userCache[comment.user_id]?.username || 'Загрузка...')}
                             </span>
                             <span className="text-sm text-gray-500">
                               {new Date(comment.created_at).toLocaleDateString('ru-RU')}
@@ -517,7 +530,7 @@ export default function ReviewPage({ params }: PageProps) {
                 <div className="text-center">
                   <Link href={`/product/${review.book.id}`} className="hover:underline">
                     <h4 className="font-semibold text-lg mb-1">{review.book.title}</h4>
-                    <p className="text-sm text-gray-600">Автор: {review.book.author}</p>
+                    <p className="text-sm text-gray-600">Автор: {review.is_anonymous ? 'Аноним' : (userCache[review.user_id]?.username || 'Загрузка...')}</p>
                   </Link>
                 </div>
               </CardContent>
@@ -542,6 +555,18 @@ export default function ReviewPage({ params }: PageProps) {
             >
               Удалить
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={toxicModalOpen} onOpenChange={setToxicModalOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Токсичный текст</AlertDialogTitle>
+            <AlertDialogDescription>{toxicModalMessage}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setToxicModalOpen(false)}>Ок</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

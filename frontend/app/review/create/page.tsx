@@ -10,6 +10,7 @@ import Footer from "@/components/footer"
 import BackButton from "@/components/back-button"
 import { api } from "@/lib/api"
 import { useToast } from "@/components/ui/use-toast"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 
 export default function CreateReviewPage() {
   const router = useRouter()
@@ -23,6 +24,9 @@ export default function CreateReviewPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [book, setBook] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isAnonymous, setIsAnonymous] = useState(false)
+  const [toxicModalOpen, setToxicModalOpen] = useState(false)
+  const [toxicModalMessage, setToxicModalMessage] = useState("")
 
   useEffect(() => {
     const fetchBook = async () => {
@@ -55,7 +59,8 @@ export default function CreateReviewPage() {
         book_id: parseInt(bookId),
         rating,
         title,
-        content
+        content,
+        is_anonymous: isAnonymous
       })
 
       toast({
@@ -66,10 +71,15 @@ export default function CreateReviewPage() {
       router.push(`/product/${bookId}`)
     } catch (err) {
       console.error('Error creating review:', err)
-      
       // Показываем сообщение об ошибке в браузере
       if (err instanceof Error && err.message.includes("already exists")) {
         alert("Вы уже написали отзыв на эту книгу")
+      } else if (err instanceof Error && err.message.includes("токсичность")) {
+        let msg = err.message
+        if (msg.startsWith('400: ')) msg = msg.slice(5)
+        setToxicModalMessage(msg)
+        setToxicModalOpen(true)
+        return // Не перенаправлять
       } else {
         alert(err instanceof Error ? err.message : "Не удалось создать отзыв")
       }
@@ -189,6 +199,18 @@ export default function CreateReviewPage() {
                 />
               </div>
 
+              {/* Anonymous Checkbox */}
+              <div className="flex items-center">
+                <input
+                  id="isAnonymous"
+                  type="checkbox"
+                  checked={isAnonymous}
+                  onChange={e => setIsAnonymous(e.target.checked)}
+                  className="mr-2"
+                />
+                <label htmlFor="isAnonymous" className="text-sm text-gray-700">Опубликовать анонимно</label>
+              </div>
+
               {/* Submit Button */}
               <Button
                 type="submit"
@@ -203,6 +225,17 @@ export default function CreateReviewPage() {
       </main>
 
       <Footer />
+      <AlertDialog open={toxicModalOpen} onOpenChange={setToxicModalOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Токсичный текст</AlertDialogTitle>
+            <AlertDialogDescription>{toxicModalMessage}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setToxicModalOpen(false)}>Ок</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 } 

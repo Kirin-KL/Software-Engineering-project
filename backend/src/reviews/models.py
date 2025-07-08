@@ -16,6 +16,7 @@ class Review(Base):
     content = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    is_anonymous = Column(Integer, default=0)  # 0 - нет, 1 - да
 
     user = relationship("User", back_populates="reviews")
     book = relationship("Book", back_populates="reviews")
@@ -30,6 +31,7 @@ class ReviewComment(Base):
     content = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    is_anonymous = Column(Integer, default=0)  # 0 - нет, 1 - да
 
     user = relationship("User", back_populates="review_comments")
     review = relationship("Review", back_populates="comments") 

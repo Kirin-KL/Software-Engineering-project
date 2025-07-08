@@ -2,6 +2,10 @@ from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, Boolean
 from sqlalchemy.orm import relationship
 from src.database import Base
+from src.borrowings.models import Borrowing
+from src.favorite.models import Favorites
+from src.books.models import Book
+from src.reviews.models import Review, ReviewComment
 
 
 class User(Base):

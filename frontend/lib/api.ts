@@ -1,3 +1,4 @@
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001/api'
 
 interface RegisterData {
@@ -132,6 +133,7 @@ interface ReviewCreate {
   rating: number;
   title: string;
   content: string;
+  is_anonymous?: boolean;
 }
 
 export interface ReviewResponse {
@@ -604,7 +606,7 @@ export const api = {
     }
   },
 
-  async addComment(reviewId: number, content: string): Promise<Comment> {
+  async addComment(reviewId: number, content: string, is_anonymous: boolean = false): Promise<Comment> {
     console.log('Adding comment to review:', reviewId)
     try {
       const response = await fetch(`${API_URL}/v1/reviews/${reviewId}/comments`, {
@@ -613,7 +615,7 @@ export const api = {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content, is_anonymous }),
       })
 
       if (!response.ok) {

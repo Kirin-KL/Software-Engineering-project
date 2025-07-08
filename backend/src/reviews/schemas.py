@@ -14,6 +14,7 @@ class BookResponse(BaseModel):
 
 class ReviewCommentBase(BaseModel):
     content: str = Field(..., min_length=1, max_length=1000)
+    is_anonymous: Optional[bool] = False
 
 class ReviewCommentCreate(ReviewCommentBase):
     pass
@@ -27,6 +28,7 @@ class ReviewCommentInDB(ReviewCommentBase):
     review_id: int
     created_at: datetime
     updated_at: datetime
+    is_anonymous: Optional[bool] = False
 
     class Config:
         from_attributes = True
@@ -35,6 +37,7 @@ class ReviewBase(BaseModel):
     rating: float = Field(..., ge=0, le=5)
     title: str = Field(..., min_length=1, max_length=200)
     content: str = Field(..., min_length=1, max_length=5000)
+    is_anonymous: Optional[bool] = False
 
     @validator('rating')
     def validate_rating(cls, v):
@@ -55,6 +58,7 @@ class ReviewInDB(ReviewBase):
     created_at: datetime
     updated_at: datetime
     comments: List[ReviewCommentInDB] = []
+    is_anonymous: Optional[bool] = False
 
     class Config:
         from_attributes = True
@@ -68,6 +72,7 @@ class ReviewCommentResponse(ReviewCommentBase):
     review_id: int
     created_at: datetime
     updated_at: datetime
+    is_anonymous: Optional[bool] = False
 
     class Config:
         from_attributes = True
@@ -80,6 +85,7 @@ class ReviewResponse(ReviewBase):
     updated_at: datetime
     comments: List[ReviewCommentResponse] = []
     book: BookResponse
+    is_anonymous: Optional[bool] = False
 
     class Config:
         from_attributes = True 

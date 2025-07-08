@@ -17,4 +17,4 @@ class BookPrice(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Связи с другими моделями
-    book = relationship("Book", back_populates="prices") 
+    # book = relationship("Book", back_populates="prices") 

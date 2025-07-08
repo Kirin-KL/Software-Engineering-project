@@ -13,11 +13,13 @@ router = APIRouter(
 
 @router.post("/", response_model=schemas.ReviewResponse, status_code=status.HTTP_201_CREATED)
 async def create_review(
-    review_data: schemas.ReviewCreate,
+    review_data: schemas.ReviewCreate,  # is_anonymous: bool = False
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Создать новый отзыв."""
+    """
+    Создать новый отзыв. Если is_anonymous=True, отзыв будет опубликован анонимно.
+    """
     return await service.ReviewService.create(review_data, current_user.id)
 
 @router.get("/", response_model=List[schemas.ReviewResponse])
@@ -95,11 +97,13 @@ async def get_user_reviews(
 @router.post("/{review_id}/comments", response_model=schemas.ReviewCommentResponse)
 async def create_comment(
     review_id: int,
-    comment_data: schemas.ReviewCommentCreate,
+    comment_data: schemas.ReviewCommentCreate,  # is_anonymous: bool = False
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Создать комментарий к отзыву."""
+    """
+    Создать комментарий к отзыву. Если is_anonymous=True, комментарий будет опубликован анонимно.
+    """
     return await service.ReviewService.create_comment(current_user.id, review_id, comment_data)
 
 @router.put("/comments/{comment_id}", response_model=schemas.ReviewCommentResponse)

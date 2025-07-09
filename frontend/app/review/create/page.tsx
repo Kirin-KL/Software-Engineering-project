@@ -74,7 +74,7 @@ export default function CreateReviewPage() {
       // Показываем сообщение об ошибке в браузере
       if (err instanceof Error && err.message.includes("already exists")) {
         alert("Вы уже написали отзыв на эту книгу")
-      } else if (err instanceof Error && err.message.includes("токсичность")) {
+      } else if (err instanceof Error && (err.message.includes("токсичность") || err.message.includes("не относится к теме книги"))) {
         let msg = err.message
         if (msg.startsWith('400: ')) msg = msg.slice(5)
         setToxicModalMessage(msg)
@@ -228,8 +228,16 @@ export default function CreateReviewPage() {
       <AlertDialog open={toxicModalOpen} onOpenChange={setToxicModalOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Токсичный текст</AlertDialogTitle>
-            <AlertDialogDescription>{toxicModalMessage}</AlertDialogDescription>
+            <AlertDialogTitle>
+              {toxicModalMessage.includes('не относится к теме книги')
+                ? 'Текст не относится к теме книги'
+                : 'Токсичный текст'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {toxicModalMessage.includes('не относится к теме книги')
+                ? 'Пожалуйста, напишите отзыв по теме книги.'
+                : toxicModalMessage}
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogAction onClick={() => setToxicModalOpen(false)}>Ок</AlertDialogAction>

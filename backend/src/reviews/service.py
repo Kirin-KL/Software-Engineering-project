@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.exc import IntegrityError
 import aiohttp
+import os
 
 from src.database import async_session_maker
 from src.service.base import BaseService
@@ -12,13 +13,15 @@ from .models import Review, ReviewComment
 from .schemas import ReviewCreate, ReviewUpdate, ReviewCommentCreate, ReviewCommentUpdate
 from src.books.models import Book
 
-YANDEXGPT_API_KEY = "AQVNygJsT8ieIdMP2II93IBaQGqFEc4TtSNv_Fde"
-YANDEXGPT_CATALOG_ID = "b1ga7ksre0kdtgo7l27q"
+YANDEXGPT_API_KEY = os.environ.get("YANDEXGPT_API_KEY")
+YANDEXGPT_CATALOG_ID = os.environ.get("YANDEXGPT_CATALOG_ID")
 
 async def check_toxicity_yandexgpt(text: str) -> bool:
     """
     Проверяет текст на токсичность через YandexGPT. Возвращает True, если токсичен.
     """
+    if not YANDEXGPT_API_KEY or not YANDEXGPT_CATALOG_ID:
+        raise RuntimeError("YANDEXGPT_API_KEY и/или YANDEXGPT_CATALOG_ID не заданы в переменных окружения!")
     url = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
     headers = {
         "Authorization": f"Api-Key {YANDEXGPT_API_KEY}",

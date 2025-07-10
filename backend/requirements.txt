@@ -8,3 +8,8 @@ psycopg2
 aiohttp==3.9.3
 beautifulsoup4==4.12.3
 brotli==1.1.0
+uvicorn
+pandas
+lightfm
+scikit-learn
+numpy

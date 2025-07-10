@@ -821,5 +821,22 @@ export const api = {
       console.error("Ошибка при выходе:", error)
       throw error
     }
+  },
+
+  async getRecommendations(userId: number): Promise<Book[]> {
+    const url = `${API_URL}/v1/recommendations/${userId}`;
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || 'Failed to fetch recommendations');
+    }
+
+    return response.json();
   }
 } 

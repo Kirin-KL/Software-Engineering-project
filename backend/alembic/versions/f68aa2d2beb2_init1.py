@@ -1,8 +1,8 @@
 """Init1
 
-Revision ID: 5fdbfb0b5fda
+Revision ID: f68aa2d2beb2
 Revises: 
-Create Date: 2025-07-07 18:18:59.096950
+Create Date: 2025-07-10 20:33:53.092324
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '5fdbfb0b5fda'
+revision: str = 'f68aa2d2beb2'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -52,17 +52,13 @@ def upgrade() -> None:
     sa.Column('isbn', sa.String(), nullable=True),
     sa.Column('publication_year', sa.Integer(), nullable=True),
     sa.Column('is_available', sa.Boolean(), nullable=True),
-    sa.Column('owner_id', sa.Integer(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('category_id', sa.Integer(), nullable=True),
-    sa.Column('total_copies', sa.Integer(), nullable=True),
-    sa.Column('available_copies', sa.Integer(), nullable=True),
     sa.Column('status', sa.Enum('AVAILABLE', 'BORROWED', 'RESERVED', name='bookstatus'), nullable=True),
     sa.Column('average_rating', sa.Float(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
     sa.Column('image_url', sa.String(), nullable=True),
     sa.ForeignKeyConstraint(['category_id'], ['categories.id'], ),
-    sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_books_author'), 'books', ['author'], unique=False)
@@ -116,6 +112,7 @@ def upgrade() -> None:
     sa.Column('content', sa.Text(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
+    sa.Column('is_anonymous', sa.Integer(), nullable=True),
     sa.ForeignKeyConstraint(['book_id'], ['books.id'], ),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
     sa.PrimaryKeyConstraint('id')
@@ -128,6 +125,7 @@ def upgrade() -> None:
     sa.Column('content', sa.Text(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
+    sa.Column('is_anonymous', sa.Integer(), nullable=True),
     sa.ForeignKeyConstraint(['review_id'], ['reviews.id'], ),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
     sa.PrimaryKeyConstraint('id')

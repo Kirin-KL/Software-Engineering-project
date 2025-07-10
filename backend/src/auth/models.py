@@ -25,7 +25,7 @@ class User(Base):
     borrowings = relationship("Borrowing", back_populates="user")
     reviews = relationship("Review", back_populates="user", cascade="all, delete-orphan")
     review_comments = relationship("ReviewComment", back_populates="user", cascade="all, delete-orphan")
-    books = relationship("Book", back_populates="owner")
+    #books = relationship("Book", back_populates="owner")
     favorites = relationship("Favorites", back_populates="user", cascade="all, delete-orphan")
     
     

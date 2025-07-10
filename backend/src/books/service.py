@@ -71,10 +71,6 @@ class BookService(BaseService):
             for field, value in update_data.items():
                 setattr(db_book, field, value)
                 
-            if "total_copies" in update_data:
-                copies_diff = update_data["total_copies"] - db_book.total_copies
-                db_book.available_copies += copies_diff
-
             try:
                 await session.commit()
                 await session.refresh(db_book)
@@ -99,24 +95,6 @@ class BookService(BaseService):
             await session.delete(db_book)
             await session.commit()
             return True
-
-    @classmethod
-    async def update_available_copies(cls, book_id: int, change: int) -> Optional[models.Book]:
-        async with async_session_maker() as session:
-            db_book = await cls.find_by_id(book_id)
-            if not db_book:
-                return None
-
-            db_book.available_copies += change
-            if db_book.available_copies < 0 or db_book.available_copies > db_book.total_copies:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid number of available copies"
-                )
-
-            await session.commit()
-            await session.refresh(db_book)
-            return db_book
 
     @classmethod
     async def update_image_url(cls, book_id: int, image_url: str) -> Optional[models.Book]:

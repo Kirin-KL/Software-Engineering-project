@@ -516,7 +516,7 @@ export default function ReviewPage({ params }: PageProps) {
                   <div className="relative aspect-[3/4] w-full h-full overflow-hidden rounded-lg">
                     {review.book.image_url ? (
                       <img
-                        src={`/books/${review.book.image_url}`}
+                        src={review.book.image_url.startsWith('http') ? review.book.image_url : `/books/${review.book.image_url}`}
                         alt={`Обложка книги ${review.book.title}`}
                         className="w-full h-full object-cover"
                       />

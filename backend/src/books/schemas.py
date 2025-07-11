@@ -44,4 +44,15 @@ class BookImageResponse(BaseModel):
     updated_at: datetime
 
     class Config:
+        from_attributes = True
+
+class BookPriceResponse(BaseModel):
+    id: int
+    platform: str
+    price: float
+    url: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
         from_attributes = True 

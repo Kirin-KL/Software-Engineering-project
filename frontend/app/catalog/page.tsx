@@ -251,7 +251,7 @@ export default function CatalogPage() {
                         <div className="relative aspect-[3/4] w-full h-full overflow-hidden rounded-lg">
                           {book.image_url ? (
                             <Image
-                              src={`/books/${book.image_url}`}
+                              src={book.image_url.startsWith('http') ? book.image_url : `/books/${book.image_url}`}
                               alt={`Обложка книги ${book.title}`}
                               fill
                               sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"

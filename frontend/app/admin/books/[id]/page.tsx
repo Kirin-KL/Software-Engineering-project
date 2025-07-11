@@ -142,7 +142,7 @@ export default function BookDetailsPage({ params }: { params: Promise<{ id: stri
             {book.image_url && (
               <div className="mb-4">
                 <img
-                  src={`/books/${book.image_url}`}
+                  src={book.image_url.startsWith('http') ? book.image_url : `/books/${book.image_url}`}
                   alt={book.title}
                   className="max-w-xs rounded-lg shadow-md"
                 />

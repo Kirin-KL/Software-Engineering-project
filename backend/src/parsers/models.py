@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from src.database import Base
@@ -16,5 +16,10 @@ class BookPrice(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # Уникальный индекс для предотвращения дублирования цен
+    __table_args__ = (
+        UniqueConstraint('book_id', 'platform', name='uq_book_platform'),
+    )
+
     # Связи с другими моделями
-    # book = relationship("Book", back_populates="prices") 
+    book = relationship("Book", back_populates="prices") 

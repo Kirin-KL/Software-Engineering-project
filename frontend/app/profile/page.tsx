@@ -211,7 +211,7 @@ export default function ProfilePage() {
                           <div className="w-full h-48 rounded-lg overflow-hidden mb-4">
                             {favorite.book?.image_url ? (
                               <img 
-                                src={`/books/${favorite.book.image_url}`}
+                                src={favorite.book.image_url.startsWith('http') ? favorite.book.image_url : `/books/${favorite.book.image_url}`}
                                 alt={`Обложка книги ${favorite.book.title}`}
                                 className="w-full h-full object-cover"
                               />

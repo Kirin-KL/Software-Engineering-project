@@ -1,32 +1,45 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, status, Body, Path
+from sqlalchemy.ext.asyncio import AsyncSession
+from .schemas import BookParseRequest, BookParseResponse
+from .service import parse_and_add_books, preview_books, parse_and_save_prices_for_book, parse_and_save_prices_for_all_books
 from src.database import get_db
-from src.auth.dependencies import get_current_user
-from src.auth.models import User
-from . import schemas, service
+from typing import List
 
-router = APIRouter(
-    prefix="/prices",
-    tags=["prices"]
-)
+router = APIRouter(tags=["parsers"])
 
-@router.get("/book/{book_id}", response_model=schemas.BookPricesResponse)
-async def get_book_prices(
-    book_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+@router.post("/preview")
+async def preview_books_endpoint():
+    links, max_count = await preview_books()
+    return {"max_count": max_count, "links": links}
+
+@router.post("/parse", response_model=BookParseResponse, status_code=status.HTTP_201_CREATED)
+async def parse_books(
+    links: List[str] = Body(..., embed=True),
+    count: int = Body(...),
+    db: AsyncSession = Depends(get_db)
 ):
-    """Получить цены на книгу со всех площадок."""
-    parser_service = service.ParserService()
-    try:
-        return await parser_service.parse_book_prices(db, book_id)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Ошибка при парсинге цен: {str(e)}"
-        ) 
+    books, added, skipped = await parse_and_add_books(links, db, count)
+    return BookParseResponse(books=books, added=added, skipped=skipped)
+
+@router.post("/parse-prices/{book_id}")
+async def parse_prices_for_book(
+    book_id: int = Path(..., description="ID книги"),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Парсит и сохраняет цены для одной книги по её id.
+    Возвращает количество добавленных цен.
+    """
+    added = await parse_and_save_prices_for_book(book_id, db)
+    return {"added": added}
+
+@router.post("/parse-prices-all")
+async def parse_prices_for_all_books(
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Парсит и сохраняет цены для всех книг в базе данных.
+    Возвращает статистику по парсингу.
+    """
+    result = await parse_and_save_prices_for_all_books(db)
+    return result

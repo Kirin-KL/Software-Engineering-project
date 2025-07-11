@@ -9,7 +9,7 @@ from src.categories.router import router as router_categories
 from src.borrowings.router import router as router_borrowings
 from src.reviews.router import router as router_reviews
 from src.favorite.router import router as router_favorites
-from src.parsers.router import router as parsers_router
+from src.parsers.router import router as router_parsers
 import os
 
 app = FastAPI(
@@ -52,7 +52,7 @@ app.include_router(router_categories, prefix="/v1/categories", tags=["categories
 app.include_router(router_borrowings, prefix="/v1/borrowings", tags=["borrowings"])
 app.include_router(router_reviews, prefix="/v1/reviews", tags=["reviews"])
 app.include_router(router_favorites, prefix="/v1/favorites", tags=["favorites"])
-app.include_router(parsers_router)
+app.include_router(router_parsers, prefix="/v1/parsers", tags=["parsers"])
 
 # Обработчик ошибок
 @app.exception_handler(Exception)

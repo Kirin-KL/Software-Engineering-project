@@ -4,6 +4,7 @@ from gigachat.models import Chat, Messages, MessagesRole
 import time
 from bs4 import BeautifulSoup
 import requests
+import os
 
 headers = {
     'User-Agent' : "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
@@ -63,11 +64,14 @@ def get_html_book24_page(url):
     if content_div:
 
         title = content_div.find('h1', class_ = 'product-detail-page__title')
-        title = title.text
+        title = title.text.split(':', 1)[-1]
         print("Название:",title)
 
         url_img = content_div.find('img', class_ = 'product-poster__main-image')
         url_img = url_img['src']
+        # Исправление: если ссылка начинается с //, делаем https://, если уже http(s) — не трогаем
+        if url_img.startswith('//'):
+            url_img = 'https:' + url_img
         print("Ссылка на обложку:",url_img)
 
         #Извлечение описания
@@ -99,7 +103,7 @@ def get_html_book24_page(url):
         "author": author,
         "description": description,
         "isbn": isbn,
-        "publication_year": year,
+        "publication_year": int(year),
         "url_image": url_img
     }
     return book_data
@@ -112,6 +116,10 @@ def get_links_to_the_book(isbn):
     soup = BeautifulSoup(html_urls_to_book.content, "html.parser")
     table_books = soup.find('div', class_ = 'results__book')
 
+    if table_books is None:
+        print(f"Не найдены результаты для ISBN: {isbn}")
+        return ""
+    
     return table_books.prettify()
 
 def limit_tokens(text: str, max_tokens: int = 120_000) -> str:
@@ -125,11 +133,13 @@ def extract_book_info_from_html_Giga(html: str) -> str:
     :param html: HTML-страница с информацией о книге
     :return: JSON-ответ от модели
     """
+    print("Начинаем извлечение информации через GigaChat...")
 
     autor_token = 'OTI5NzEzYTItNjAwYS00Y2Y1LWEzYWQtNWVkN2Q2NTQwMzE0OmZkNTk3YTk0LTA2MjItNGRiOS05M2U0LTc1ZWQyMTU2OTAyNw=='
 
     # Ограничиваем объем HTML под допустимое количество токенов
     prompt_html = limit_tokens(html, 120_000)
+    print(f"Длина HTML после ограничения токенов: {len(prompt_html)}")
 
     # Системный промпт
     system_prompt = (
@@ -142,8 +152,14 @@ def extract_book_info_from_html_Giga(html: str) -> str:
     user_question = (
         'Необходимо из html кода предоставленного ниже извлечь следующую информацию:'
         ' 1.Название магазина; 2. Ссылку на страницу книги в интернет магазине; 3. Цену книги.'
-        'Если магазинов несколько напиши о всех них.'
-        'Всю полученную информацию предоставь в виде текста JSON с заголовками: market, price, book_url.'
+        'Если магазинов несколько, верни массив объектов.'
+        'Всю полученную информацию предоставь в виде JSON с заголовками: market, price, book_url.'
+        'ВАЖНО: price должен быть числом (без "р." или других символов), book_url должен быть прямой ссылкой на магазин.'
+        'Пример правильного формата:'
+        '[' 
+        '  {"market": "Book24", "price": 751, "book_url": "https://book24.ru/product/maskarad-8709144/"},'
+        '  {"market": "Читай-город", "price": 751, "book_url": "https://www.chitai-gorod.ru/product/maskarad-3106956"}'
+        ']'
         'В ответе должен быть только json без объяснений.'
         f'Html код страницы:\n{prompt_html}'
     )
@@ -159,9 +175,22 @@ def extract_book_info_from_html_Giga(html: str) -> str:
     )
 
     # Запрос к GigaChat API
-    with GigaChat(credentials=autor_token, ca_bundle_file="russian_trusted_root_ca.cer") as giga:
-        response = giga.chat(payload)
-        return response.choices[0].message.content
+    # Получаем путь к файлу сертификата относительно корня проекта
+    cert_path = os.path.join(os.path.dirname(__file__), "russian_trusted_root_ca.cer")
+    print(f"Путь к сертификату: {cert_path}")
+    print(f"Файл существует: {os.path.exists(cert_path)}")
+    
+    try:
+        with GigaChat(credentials=autor_token, ca_bundle_file=cert_path) as giga:
+            print("Отправляем запрос к GigaChat...")
+            response = giga.chat(payload)
+            result = response.choices[0].message.content
+            print(f"Получен ответ от GigaChat длиной: {len(result)}")
+            print(f"Ответ: {result[:200]}...")  # Показываем первые 200 символов
+            return result
+    except Exception as e:
+        print(f"Ошибка при работе с GigaChat: {e}")
+        raise e
 
 
 

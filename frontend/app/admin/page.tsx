@@ -50,6 +50,10 @@ export default function AdminDashboard() {
   const [isLoading, setIsLoading] = useState(true)
   const [bookToDelete, setBookToDelete] = useState<Book | null>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isParsing, setIsParsing] = useState(false)
+  const [parsingStatus, setParsingStatus] = useState<string | null>(null)
+  const [parsingBookId, setParsingBookId] = useState<number | null>(null)
+  const [parsingAllPrices, setParsingAllPrices] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -60,26 +64,21 @@ export default function AdminDashboard() {
       // Получаем все книги
       const books = await api.getLatestBooks(1000)
       setBooks(books)
-      
       // Получаем все отзывы
       const reviews = await api.getReviews(0, 1000)
-      
-      // Получаем всех пользователей
-      const users = await api.getAllUsers()
-
       // Обновляем статистику
-      setStats(prev => prev.map(stat => {
-        if (stat.title === "Всего пользователей") {
-          return { ...stat, value: users.length.toString() }
-        }
-        if (stat.title === "Книги в каталоге") {
-          return { ...stat, value: books.length.toString() }
-        }
-        if (stat.title === "Отзывы") {
-          return { ...stat, value: reviews.length.toString() }
-        }
-        return stat
-      }))
+      setStats([
+        {
+          title: "Книги в каталоге",
+          value: books.length.toString(),
+          icon: <BookOpen className="h-6 w-6" />,
+        },
+        {
+          title: "Отзывы",
+          value: reviews.length.toString(),
+          icon: <MessageSquare className="h-6 w-6" />,
+        },
+      ])
     } catch (error) {
       console.error("Ошибка при загрузке данных:", error)
       toast({
@@ -93,7 +92,7 @@ export default function AdminDashboard() {
   }
 
   // Фильтрация книг по поисковому запросу
-  const filteredBooks = books.filter(book => {
+  const filteredBooks = books.filter((book: Book) => {
     const searchLower = searchQuery.toLowerCase()
     return (
       book.title.toLowerCase().includes(searchLower) ||
@@ -111,7 +110,7 @@ export default function AdminDashboard() {
 
     try {
       await api.deleteBook(bookToDelete.id)
-      setBooks(books.filter(book => book.id !== bookToDelete.id))
+      setBooks(books.filter((book: Book) => book.id !== bookToDelete.id))
       toast({
         title: "Успех",
         description: "Книга успешно удалена",
@@ -126,6 +125,79 @@ export default function AdminDashboard() {
     } finally {
       setIsDeleteDialogOpen(false)
       setBookToDelete(null)
+    }
+  }
+
+  const handleParsePricesClick = async (book: Book) => {
+    setParsingBookId(book.id)
+    try {
+      const result = await api.adminParseBookPrices(book.id)
+      toast({
+        title: 'Парсинг цен завершён',
+        description: `Добавлено цен: ${result.added}`,
+      })
+    } catch (error) {
+      toast({
+        title: 'Ошибка',
+        description: 'Не удалось спарсить цены для книги',
+        variant: 'destructive',
+      })
+    } finally {
+      setParsingBookId(null)
+    }
+  }
+
+  const handleParseAllPricesClick = async () => {
+    setParsingAllPrices(true)
+    setParsingStatus('Парсинг цен всех книг...')
+    console.log('[Парсер] Запуск парсинга цен всех книг...')
+    try {
+      const result = await api.adminParseAllBookPrices()
+      setParsingStatus(`Парсинг завершён. Обработано: ${result.processed}, добавлено: ${result.added}, ошибок: ${result.errors}`)
+      console.log(`[Парсер] Парсинг завершён. Обработано: ${result.processed}, добавлено: ${result.added}, ошибок: ${result.errors}`)
+      toast({
+        title: 'Парсинг завершён',
+        description: `Обработано: ${result.processed}, добавлено: ${result.added}, ошибок: ${result.errors}`,
+      })
+      fetchData()
+    } catch (error: any) {
+      setParsingStatus('Ошибка при парсинге цен всех книг')
+      console.error('[Парсер] Ошибка:', error)
+      toast({
+        title: 'Ошибка',
+        description: error.message || 'Не удалось выполнить парсинг',
+        variant: 'destructive',
+      })
+    } finally {
+      setParsingAllPrices(false)
+      setTimeout(() => setParsingStatus(null), 5000)
+    }
+  }
+
+  const handleParseBooks = async () => {
+    setIsParsing(true)
+    setParsingStatus('Парсинг запущен...')
+    console.log('[Парсер] Запуск парсинга книг...')
+    try {
+      const result = await api.adminParseBooks()
+      setParsingStatus(`Парсинг завершён. Добавлено: ${result.added}, пропущено: ${result.skipped}`)
+      console.log(`[Парсер] Парсинг завершён. Добавлено: ${result.added}, пропущено: ${result.skipped}`)
+      toast({
+        title: 'Парсинг завершён',
+        description: `Добавлено: ${result.added}, пропущено: ${result.skipped}`,
+      })
+      fetchData()
+    } catch (error: any) {
+      setParsingStatus('Ошибка при парсинге книг')
+      console.error('[Парсер] Ошибка:', error)
+      toast({
+        title: 'Ошибка',
+        description: error.message || 'Не удалось выполнить парсинг',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsParsing(false)
+      setTimeout(() => setParsingStatus(null), 5000)
     }
   }
 
@@ -145,10 +217,10 @@ export default function AdminDashboard() {
                 Добавить категорию
               </Button>
             </Link>
-            <Link href="/admin/books/new">
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Добавить книгу
+            <Link href="/admin/parsers">
+              <Button variant="secondary">
+                <BookOpen className="mr-2 h-4 w-4" />
+                Парсинг книг
               </Button>
             </Link>
           </div>
@@ -160,7 +232,7 @@ export default function AdminDashboard() {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          {stats.map((stat, index) => (
+          {stats.map((stat: StatCard, index: number) => (
             <Card key={index}>
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
@@ -179,56 +251,66 @@ export default function AdminDashboard() {
         <div className="mt-8">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold">Список книг</h2>
-            <div className="relative w-64">
-              <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                type="text"
-                placeholder="Поиск по названию или автору..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8"
-              />
+            <div className="flex items-center gap-4">
+              <Button
+                variant="outline"
+                onClick={handleParseAllPricesClick}
+                disabled={parsingAllPrices}
+              >
+                {parsingAllPrices ? 'Парсинг...' : 'Парсинг всех цен'}
+              </Button>
+              <div className="relative w-64">
+                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  type="text"
+                  placeholder="Поиск по названию или автору..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-8"
+                />
+              </div>
             </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          <ul className="divide-y border rounded bg-white">
             {filteredBooks.map((book) => (
-              <Card 
-                key={book.id} 
-                className="hover:shadow-md transition-shadow cursor-pointer"
-                onClick={() => router.push(`/admin/books/${book.id}`)}
+              <li
+                key={book.id}
+                className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50"
               >
-                <CardHeader className="flex flex-row items-center justify-between p-4">
-                  <CardTitle className="text-lg line-clamp-1">{book.title}</CardTitle>
-                </CardHeader>
-                <CardContent className="p-4">
-                  <div className="flex items-start space-x-3">
-                    <div className="w-16 h-24 bg-gray-200 rounded flex-shrink-0 overflow-hidden">
-                      {book.image_url ? (
-                        <img
-                          src={`/books/${book.image_url}`}
-                          alt={book.title}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                          <BookOpen className="h-8 w-8 text-gray-400" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <h3 className="text-sm font-medium text-gray-900 line-clamp-1">{book.title}</h3>
-                      <p className="text-xs text-gray-500 line-clamp-1">{book.author}</p>
-                      <div className="flex items-center">
-                        <span className="text-xs text-gray-500 line-clamp-1">
-                          ISBN: {book.isbn}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                <div 
+                  className="flex items-center gap-3 flex-1 cursor-pointer"
+                  onClick={() => router.push(`/admin/books/${book.id}`)}
+                >
+                  <span className="font-medium">{book.title}</span>
+                  <span className="text-gray-500 text-sm ml-2">{book.author}</span>
+                  <span className="text-gray-400 text-xs ml-auto">ISBN: {book.isbn}</span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleParsePricesClick(book)
+                  }}
+                  disabled={parsingBookId === book.id}
+                  className="ml-2"
+                >
+                  {parsingBookId === book.id ? 'Парсинг...' : 'Парсинг цен'}
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleDeleteClick(book)
+                  }}
+                  className="ml-2"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </li>
             ))}
-          </div>
+          </ul>
         </div>
       </main>
 
@@ -256,6 +338,11 @@ export default function AdminDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {parsingStatus && (
+        <div className="fixed bottom-4 right-4 bg-white border border-gray-300 rounded shadow-lg px-4 py-2 z-50">
+          {parsingStatus}
+        </div>
+      )}
     </div>
   )
 }

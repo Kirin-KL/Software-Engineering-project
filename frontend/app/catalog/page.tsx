@@ -240,12 +240,12 @@ export default function CatalogPage() {
               sortedBooks.map((book) => (
                 <Link href={`/product/${book.id}`} key={book.id}>
                   <Card className={viewMode === "grid" 
-                    ? "h-[460px] hover:shadow-lg transition-shadow duration-200 flex flex-col"
+                    ? "h-[520px] hover:shadow-lg transition-shadow duration-200 flex flex-col"
                     : "hover:shadow-lg transition-shadow duration-200 flex flex-row h-[220px]"
                   }>
                     <div className={viewMode === "grid" ? "w-full" : "w-[200px] flex-none"}>
                       <div className={viewMode === "grid" 
-                        ? "w-full h-[260px] bg-gray-200 rounded-lg flex items-center justify-center mb-2"
+                        ? "w-full h-[280px] bg-gray-200 rounded-lg flex items-center justify-center mb-2"
                         : "w-full h-full bg-gray-200 rounded-l-lg flex items-center justify-center"
                       }>
                         <div className="relative aspect-[3/4] w-full h-full overflow-hidden rounded-lg">
@@ -266,33 +266,23 @@ export default function CatalogPage() {
                         </div>
                       </div>
                     </div>
-                    <div className={viewMode === "grid" ? "flex-grow" : "flex-grow p-4 flex flex-col"}>
-                      <CardHeader className={viewMode === "grid" ? "flex-none p-2" : "flex-none p-0 mb-1"}>
-                        <CardTitle className="line-clamp-2 text-lg mb-1">{book.title}</CardTitle>
-                        <CardDescription className="line-clamp-1">{book.author}</CardDescription>
-                      </CardHeader>
-                      <CardContent className={viewMode === "grid" 
-                        ? "flex-grow flex flex-col p-2 pt-0"
-                        : "flex-grow flex flex-col p-0"
-                      }>
-                        <div className="flex items-center gap-2 mb-1 flex-none h-[24px]">
+                    <div className={viewMode === "grid" ? "flex-grow flex flex-col p-2" : "flex-grow p-4 flex flex-col"}>
+                      <div>
+                        <CardTitle className="line-clamp-2 text-lg mb-1 h-[3.5rem] overflow-hidden">{book.title}</CardTitle>
+                        <CardDescription className="line-clamp-1 mb-2 h-[1.25rem] overflow-hidden">{book.author}</CardDescription>
+                        <div className="flex items-center gap-2 mb-4 h-[1.5rem]">
                           <StarRating rating={book.average_rating || 0} />
                           <span className="text-sm text-gray-500">
                             {book.average_rating ? book.average_rating.toFixed(1) : "Нет оценок"}
                           </span>
                         </div>
-                      </CardContent>
-                      <CardFooter className={viewMode === "grid" 
-                        ? "flex-none p-2 pt-0"
-                        : "flex-none p-0 mt-auto"
-                      }>
-                        <div className="w-full">
-                          <div className="flex justify-between items-center text-sm text-gray-500 mb-1">
-                            <span>Год: {book.publication_year}</span>
-                          </div>
-                          <Button className="w-full">Подробнее</Button>
+                      </div>
+                      <div className="mt-auto">
+                        <div className="flex justify-between items-center text-sm text-gray-500 mb-2 h-[1.25rem]">
+                          <span>Год: {book.publication_year}</span>
                         </div>
-                      </CardFooter>
+                        <Button className="w-full h-[2.5rem]">Подробнее</Button>
+                      </div>
                     </div>
                   </Card>
                 </Link>

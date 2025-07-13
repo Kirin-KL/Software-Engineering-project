@@ -948,6 +948,7 @@ export const api = {
       throw new Error('Не удалось получить цены на книгу');
     }
     return await response.json();
+  },
 
   async getRecommendations(userId: number): Promise<Book[]> {
     const url = `${API_URL}/v1/recommendations/${userId}`;
@@ -1008,4 +1009,4 @@ export const api = {
 
     return response.json()
   }
-} 
+}

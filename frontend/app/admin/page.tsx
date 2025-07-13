@@ -58,6 +58,22 @@ export default function AdminDashboard() {
   const [metrics, setMetrics] = useState<any>(null)
   const [isLoadingMetrics, setIsLoadingMetrics] = useState(false)
 
+  const loadMetrics = async () => {
+    setIsLoadingMetrics(true)
+    try {
+      const metricsData = await api.getRecommendationMetrics()
+      setMetrics(metricsData)
+    } catch (error) {
+      console.error("Ошибка при загрузке метрик:", error)
+      toast({
+        title: "Ошибка",
+        description: "Не удалось загрузить метрики рекомендаций",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoadingMetrics(false)
+    }
+  }
 
   useEffect(() => {
     fetchData()
@@ -203,6 +219,8 @@ export default function AdminDashboard() {
     } finally {
       setIsParsing(false)
       setTimeout(() => setParsingStatus(null), 5000)
+    }
+  }
       
   const handleRetrainRecommendations = async () => {
     setIsRetraining(true)
@@ -223,23 +241,6 @@ export default function AdminDashboard() {
       })
     } finally {
       setIsRetraining(false)
-    }
-  }
-
-  const loadMetrics = async () => {
-    setIsLoadingMetrics(true)
-    try {
-      const metricsData = await api.getRecommendationMetrics()
-      setMetrics(metricsData)
-    } catch (error) {
-      console.error("Ошибка при загрузке метрик:", error)
-      toast({
-        title: "Ошибка",
-        description: "Не удалось загрузить метрики рекомендаций",
-        variant: "destructive",
-      })
-    } finally {
-      setIsLoadingMetrics(false)
     }
   }
 
@@ -523,3 +524,4 @@ export default function AdminDashboard() {
     </div>
   )
 }
+

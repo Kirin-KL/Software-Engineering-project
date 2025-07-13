@@ -68,6 +68,18 @@ try:
 except ImportError:
     Comment = None
 
+def clear_all_tables(session: Session):
+    # Для Postgres — быстрая очистка всех таблиц с каскадом
+    try:
+        session.execute('TRUNCATE TABLE favorites, borrowings, reviews, books, categories, users RESTART IDENTITY CASCADE;')
+        session.commit()
+    except Exception as e:
+        print('TRUNCATE не сработал, fallback на delete:', e)
+        # Fallback для других СУБД
+        for model in [Favorites, Borrowing, Review, Book, Category, User]:
+            session.query(model).delete()
+            session.commit()
+
 def create_categories(session: Session, n=10):
     if Comment is not None:
         session.query(Comment).delete()
@@ -136,8 +148,8 @@ def create_books(session: Session, categories, n=None):
                 description=b["description"],
                 isbn=b["isbn"],
                 publication_year=b["publication_year"],
-                total_copies=random.randint(2, 20),
-                available_copies=random.randint(0, 20),
+                # total_copies=random.randint(2, 20),
+                # available_copies=random.randint(0, 20),
                 is_available=True,
                 average_rating=round(random.uniform(2, 5), 1),
                 category_id=category.id
@@ -258,6 +270,8 @@ def create_favorites(session: Session, users, books, min_fav=1, max_fav=10):
 
 def main():
     with SessionLocal() as session:
+        print("Очищаем все таблицы...")
+        clear_all_tables(session)
         print("Создаём категории...")
         categories = create_categories(session, n=15)
         print("Создаём пользователей...")

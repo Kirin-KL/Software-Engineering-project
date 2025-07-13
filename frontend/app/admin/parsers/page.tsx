@@ -66,7 +66,6 @@ export default function ParsersPage() {
         </Link>
       </div>
       <h1 className="text-2xl font-bold mb-4">Парсинг книг с сайта Book24.ru</h1>
-      <p className="mb-6 text-gray-600">С этого сайта будет происходить парсинг книг.</p>
       <div className="mb-4 flex items-center gap-2">
         <Button onClick={handleFindBooks} disabled={parsing || maxCount !== null}>
           Найти книги
@@ -75,7 +74,7 @@ export default function ParsersPage() {
       {status && <div className="mb-2 text-blue-600">{status}</div>}
       {error && <div className="mb-2 text-red-600">{error}</div>}
       {maxCount !== null && (
-        <div className="mb-4">Максимальное количество уникальных книг: <b>{maxCount}</b></div>
+        <div className="mb-4">Всего найдено книг: <b>{maxCount}</b></div>
       )}
       {maxCount !== null && !parsingResult && (
         <div className="mb-4 flex items-center gap-2">

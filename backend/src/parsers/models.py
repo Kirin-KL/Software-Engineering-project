@@ -10,7 +10,7 @@ class BookPrice(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     book_id = Column(Integer, ForeignKey("books.id", ondelete="CASCADE"), nullable=False)
-    platform = Column(String, nullable=False)  # OZON, Wildberries, Читай-город, Яндекс Маркет
+    platform = Column(String, nullable=False) 
     price = Column(Float, nullable=False)
     url = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)

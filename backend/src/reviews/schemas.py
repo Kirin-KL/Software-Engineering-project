@@ -28,7 +28,6 @@ class ReviewCommentInDB(ReviewCommentBase):
     review_id: int
     created_at: datetime
     updated_at: datetime
-    is_anonymous: Optional[bool] = False
 
     class Config:
         from_attributes = True
@@ -58,7 +57,6 @@ class ReviewInDB(ReviewBase):
     created_at: datetime
     updated_at: datetime
     comments: List[ReviewCommentInDB] = []
-    is_anonymous: Optional[bool] = False
 
     class Config:
         from_attributes = True
@@ -72,7 +70,6 @@ class ReviewCommentResponse(ReviewCommentBase):
     review_id: int
     created_at: datetime
     updated_at: datetime
-    is_anonymous: Optional[bool] = False
 
     class Config:
         from_attributes = True
@@ -85,7 +82,6 @@ class ReviewResponse(ReviewBase):
     updated_at: datetime
     comments: List[ReviewCommentResponse] = []
     book: BookResponse
-    is_anonymous: Optional[bool] = False
 
     class Config:
         from_attributes = True 

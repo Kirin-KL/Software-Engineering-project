@@ -134,10 +134,14 @@ class ReviewService(BaseService):
                         detail="Вы уже оставили отзыв на эту книгу"
                     )
 
+                # Получаем данные отзыва, исключая is_anonymous для правильной обработки
+                review_dict = review_data.model_dump()
+                is_anonymous = review_dict.pop('is_anonymous', False)
+                
                 db_review = Review(
-                    **review_data.model_dump(),
+                    **review_dict,
                     user_id=user_id,
-                    is_anonymous=int(getattr(review_data, 'is_anonymous', False))
+                    is_anonymous=int(is_anonymous)
                 )
                 session.add(db_review)
                 await session.flush()
@@ -323,7 +327,7 @@ class ReviewService(BaseService):
                 user_id=user_id,
                 review_id=review_id,
                 content=comment_data.content,
-                is_anonymous=int(getattr(comment_data, 'is_anonymous', False))
+                is_anonymous=int(comment_data.is_anonymous)
             )
             session.add(comment)
             await session.flush()
@@ -359,7 +363,8 @@ class ReviewService(BaseService):
                 )
 
             # Обновляем поля
-            for field, value in comment_data.dict().items():
+            update_data = comment_data.model_dump(exclude_unset=True)
+            for field, value in update_data.items():
                 setattr(comment, field, value)
 
             await session.flush()

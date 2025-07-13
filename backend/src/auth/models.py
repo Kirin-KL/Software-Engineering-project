@@ -2,6 +2,10 @@ from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, Boolean
 from sqlalchemy.orm import relationship
 from src.database import Base
+from src.borrowings.models import Borrowing
+from src.favorite.models import Favorites
+from src.books.models import Book
+from src.reviews.models import Review, ReviewComment
 
 
 class User(Base):
@@ -21,7 +25,7 @@ class User(Base):
     borrowings = relationship("Borrowing", back_populates="user")
     reviews = relationship("Review", back_populates="user", cascade="all, delete-orphan")
     review_comments = relationship("ReviewComment", back_populates="user", cascade="all, delete-orphan")
-    books = relationship("Book", back_populates="owner")
+    #books = relationship("Book", back_populates="owner")
     favorites = relationship("Favorites", back_populates="user", cascade="all, delete-orphan")
     
     

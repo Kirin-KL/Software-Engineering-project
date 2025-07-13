@@ -1,35 +1,18 @@
-from pydantic import BaseModel, HttpUrl
-from datetime import datetime
+from pydantic import BaseModel
 from typing import Optional, List
 
-class BookPriceBase(BaseModel):
-    """Базовая схема для цены книги."""
-    platform: str
-    price: float
-    url: str
+class BookParsed(BaseModel):
+    title: str
+    author: Optional[str] = None
+    description: Optional[str] = None
+    isbn: Optional[str] = None
+    publication_year: Optional[int] = None
+    url_image: Optional[str] = None
 
-class BookPriceCreate(BookPriceBase):
-    """Схема для создания записи о цене книги."""
-    book_id: int
+class BookParseRequest(BaseModel):
+    count: Optional[int] = None  # Сколько книг парсить (None = все)
 
-class BookPriceUpdate(BookPriceBase):
-    """Схема для обновления записи о цене книги."""
-    pass
-
-class BookPriceResponse(BookPriceBase):
-    """Схема для ответа с информацией о цене книги."""
-    id: int
-    book_id: int
-    created_at: datetime
-    updated_at: datetime
-
-    class Config:
-        from_attributes = True
-
-class BookPricesResponse(BaseModel):
-    """Схема для ответа с информацией о ценах книги на разных площадках."""
-    book_id: int
-    prices: List[BookPriceResponse]
-    min_price: float
-    max_price: float
-    average_price: float 
+class BookParseResponse(BaseModel):
+    books: List[BookParsed]
+    added: int
+    skipped: int

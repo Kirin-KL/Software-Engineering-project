@@ -6,7 +6,7 @@ import { Star, ChevronDown, ChevronUp, Heart } from "lucide-react"
 import Header from "@/components/header"
 import Footer from "@/components/footer"
 import BackButton from "@/components/back-button"
-import { api, Book, Review, UserInfo } from "@/lib/api"
+import { api, Book, Review, UserInfo, BookPrice } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
 import Link from "next/link"
@@ -21,6 +21,8 @@ export default function ProductPage({ params }: { params: { id: string } }) {
   const [reviews, setReviews] = useState<Review[]>([])
   const [isLoadingReviews, setIsLoadingReviews] = useState(false)
   const [users, setUsers] = useState<{ [key: number]: UserInfo }>({})
+  const [prices, setPrices] = useState<BookPrice[]>([])
+  const [isLoadingPrices, setIsLoadingPrices] = useState(true)
   const { toast } = useToast()
 
   useEffect(() => {
@@ -53,6 +55,21 @@ export default function ProductPage({ params }: { params: { id: string } }) {
     }
 
     fetchBook()
+  }, [params.id])
+
+  useEffect(() => {
+    const fetchPrices = async () => {
+      setIsLoadingPrices(true)
+      try {
+        const data = await api.getBookPrices(params.id)
+        setPrices(data)
+      } catch (e) {
+        setPrices([])
+      } finally {
+        setIsLoadingPrices(false)
+      }
+    }
+    fetchPrices()
   }, [params.id])
 
   useEffect(() => {
@@ -149,13 +166,6 @@ export default function ProductPage({ params }: { params: { id: string } }) {
                 ? "В избранном"
                 : "В избранное"}
             </Button>
-            <Button
-              variant="default"
-              onClick={() => window.open('https://www.litres.ru', '_blank')}
-              className="flex items-center"
-            >
-              Купить
-            </Button>
           </div>
         </div>
 
@@ -165,7 +175,7 @@ export default function ProductPage({ params }: { params: { id: string } }) {
             <div className="w-full h-96 bg-gray-200 rounded-lg overflow-hidden">
               {book?.image_url ? (
                 <img 
-                  src={`/books/${book.image_url}`}
+                  src={book.image_url.startsWith('http') ? book.image_url : `/books/${book.image_url}`}
                   alt={`Обложка книги ${book.title}`}
                   className="w-full h-full object-cover"
                 />
@@ -209,6 +219,26 @@ export default function ProductPage({ params }: { params: { id: string } }) {
               <p className="text-gray-700 text-sm">ISBN: {book?.isbn}</p>
               {book?.publication_year && (
                 <p className="text-gray-700 text-sm">Год публикации: {book.publication_year}</p>
+              )}
+            </div>
+
+            {/* Book Prices Section */}
+            <div className="mb-6">
+              <h3 className="font-semibold mb-2">Цены в магазинах</h3>
+              {isLoadingPrices ? (
+                <div className="text-gray-500">Загрузка цен...</div>
+              ) : prices.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {prices.map((price) => (
+                    <div key={price.id} className="border rounded-lg p-4 flex flex-col items-start bg-white shadow">
+                      <span className="font-bold mb-2">{price.platform}</span>
+                      <span className="text-lg font-semibold mb-2">{price.price} ₽</span>
+                      <a href={price.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Перейти в магазин</a>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-gray-500">Информация о ценах отсутствует</div>
               )}
             </div>
           </div>

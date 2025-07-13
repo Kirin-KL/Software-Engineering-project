@@ -1,3 +1,4 @@
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001/api'
 
 interface RegisterData {
@@ -132,6 +133,7 @@ interface ReviewCreate {
   rating: number;
   title: string;
   content: string;
+  is_anonymous?: boolean;
 }
 
 export interface ReviewResponse {
@@ -173,6 +175,15 @@ interface BookCreate {
 
 interface CategoryCreate {
   name: string
+}
+
+export interface BookPrice {
+  id: number;
+  platform: string;
+  price: number;
+  url: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export const api = {
@@ -633,7 +644,7 @@ export const api = {
     }
   },
 
-  async addComment(reviewId: number, content: string): Promise<Comment> {
+  async addComment(reviewId: number, content: string, is_anonymous: boolean = false): Promise<Comment> {
     console.log('Adding comment to review:', reviewId)
     try {
       const response = await fetch(`${API_URL}/v1/reviews/${reviewId}/comments`, {
@@ -642,7 +653,7 @@ export const api = {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content, is_anonymous }),
       })
 
       if (!response.ok) {
@@ -851,6 +862,92 @@ export const api = {
       throw error
     }
   },
+
+
+  async adminParseBooks(count?: number): Promise<{ books: any[]; added: number; skipped: number }> {
+    const response = await fetch(`${API_URL}/v1/parsers/parse`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({ links: [], count: count || 10 }),
+    })
+    if (!response.ok) {
+      throw new Error('Ошибка при парсинге книг')
+    }
+    return await response.json();
+  },
+
+  async adminParseBookPrices(bookId: number): Promise<{ added: number }> {
+    const response = await fetch(`${API_URL}/v1/parsers/parse-prices/${bookId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+    })
+    if (!response.ok) {
+      throw new Error('Ошибка при парсинге цен для книги')
+    }
+    return response.json()
+  },
+
+  async adminPreviewBooks(): Promise<{ max_count: number; links: string[] }> {
+    const response = await fetch(`${API_URL}/v1/parsers/preview`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+    })
+    if (!response.ok) {
+      throw new Error('Ошибка при получении списка книг')
+    }
+    return response.json()
+  },
+
+  async adminParseBooksByLinks(links: string[], count: number): Promise<{ books: any[]; added: number; skipped: number }> {
+    const response = await fetch(`${API_URL}/v1/parsers/parse`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({ links, count }),
+    })
+    if (!response.ok) {
+      throw new Error('Ошибка при парсинге книг')
+    }
+    return response.json()
+  },
+
+  async adminParseAllBookPrices(): Promise<{ total_books: number; processed: number; added: number; errors: number }> {
+    const response = await fetch(`${API_URL}/v1/parsers/parse-prices-all`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+    })
+    if (!response.ok) {
+      throw new Error('Ошибка при массовом парсинге цен')
+    }
+    return response.json()
+  },
+
+  async getBookPrices(bookId: string): Promise<BookPrice[]> {
+    const url = `${API_URL}/v1/books/${bookId}/prices`;
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    if (!response.ok) {
+      throw new Error('Не удалось получить цены на книгу');
+    }
+    return await response.json();
 
   async getRecommendations(userId: number): Promise<Book[]> {
     const url = `${API_URL}/v1/recommendations/${userId}`;

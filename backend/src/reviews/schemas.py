@@ -14,6 +14,7 @@ class BookResponse(BaseModel):
 
 class ReviewCommentBase(BaseModel):
     content: str = Field(..., min_length=1, max_length=1000)
+    is_anonymous: Optional[bool] = False
 
 class ReviewCommentCreate(ReviewCommentBase):
     pass
@@ -35,6 +36,7 @@ class ReviewBase(BaseModel):
     rating: float = Field(..., ge=0, le=5)
     title: str = Field(..., min_length=1, max_length=200)
     content: str = Field(..., min_length=1, max_length=5000)
+    is_anonymous: Optional[bool] = False
 
     @validator('rating')
     def validate_rating(cls, v):

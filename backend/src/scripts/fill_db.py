@@ -1,18 +1,17 @@
-import random
 from datetime import datetime, timedelta
+import random
 from sqlalchemy.orm import Session
 from src.database import SessionLocal, Base, sync_engine
-from src.books.models import Book
 from src.auth.models import User
-from src.categories.models import Category
+from src.books.models import Book
 from src.reviews.models import Review
-from src.borrowings.models import Borrowing, BorrowingStatus
 from src.favorite.models import Favorites
+from src.categories.models import Category
+from src.borrowings.models import Borrowing, BorrowingStatus
 
-# --- Синхронное хеширование пароля для тестовых данных ---
+# --- Хеширование паролей ---
 from passlib.context import CryptContext
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 def get_password_hash_sync(password: str) -> str:
     return pwd_context.hash(password)
 
@@ -47,6 +46,19 @@ COMMENT_TEMPLATES = [
     "После вашего отзыва захотелось прочитать!"
 ]
 
+BOOK_DATA = [
+    {"title": "Война и мир", "author": "Лев Толстой", "description": "Эпопея о войне 1812 года.", "isbn": "978-5-699-12014-7", "publication_year": 1869},
+    {"title": "Преступление и наказание", "author": "Фёдор Достоевский", "description": "Психологический роман.", "isbn": "978-5-389-07453-2", "publication_year": 1866},
+    {"title": "Мастер и Маргарита", "author": "Михаил Булгаков", "description": "Мистика и сатира.", "isbn": "978-5-17-118366-5", "publication_year": 1967},
+    {"title": "Анна Каренина", "author": "Лев Толстой", "description": "Трагедия любви.", "isbn": "978-5-389-07454-9", "publication_year": 1877},
+    {"title": "Идиот", "author": "Фёдор Достоевский", "description": "Роман о добре.", "isbn": "978-5-389-07455-6", "publication_year": 1869},
+    {"title": "Обломов", "author": "Иван Гончаров", "description": "Роман о лени.", "isbn": "978-5-389-07456-3", "publication_year": 1859},
+    {"title": "Дубровский", "author": "Александр Пушкин", "description": "Роман о мести.", "isbn": "978-5-389-07457-0", "publication_year": 1841},
+    {"title": "Евгений Онегин", "author": "Александр Пушкин", "description": "Роман в стихах.", "isbn": "978-5-389-07458-7", "publication_year": 1833},
+    {"title": "Доктор Живаго", "author": "Борис Пастернак", "description": "Роман о революции.", "isbn": "978-5-389-07459-4", "publication_year": 1957},
+    {"title": "Тихий Дон", "author": "Михаил Шолохов", "description": "Казачья сага.", "isbn": "978-5-389-07460-0", "publication_year": 1940},
+]
+
 # --- Создаём таблицы, если их нет ---
 Base.metadata.create_all(bind=sync_engine)
 
@@ -55,10 +67,6 @@ try:
     from src.reviews.models import Comment
 except ImportError:
     Comment = None
-
-def random_date(start, end):
-    """Генерирует случайную дату между start и end (datetime)"""
-    return start + timedelta(seconds=random.randint(0, int((end - start).total_seconds())))
 
 def create_categories(session: Session, n=10):
     if Comment is not None:
@@ -111,26 +119,46 @@ def create_users(session: Session, n=50):
     session.commit()
     return users
 
-def create_books(session: Session, categories, n=100):
+def create_books(session: Session, categories, n=None):
     session.query(Book).delete()
     session.commit()
     books = []
+    # Если BOOK_DATA определён, используем его
+    if n is None:
+        n = len(BOOK_DATA)
     for i in range(n):
-        title = random.choice(BOOK_TITLES) + f" {random.randint(1, 100)}"
-        author = random.choice(AUTHORS)
-        category = random.choice(categories)
-        book = Book(
-            title=title,
-            author=author,
-            description=f"{title} — {random.choice(['увлекательная', 'трогательная', 'захватывающая', 'необычная', 'глубокая'])} книга в жанре {category.name}.",
-            isbn=f"978-5-{random.randint(10000,99999)}-{i:03d}",
-            publication_year=random.randint(1950, 2023),
-            total_copies=random.randint(2, 20),
-            available_copies=random.randint(0, 20),
-            is_available=True,
-            average_rating=round(random.uniform(2, 5), 1),
-            category_id=category.id
-        )
+        if i < len(BOOK_DATA):
+            b = BOOK_DATA[i]
+            category = random.choice(categories)
+            book = Book(
+                title=b["title"],
+                author=b["author"],
+                description=b["description"],
+                isbn=b["isbn"],
+                publication_year=b["publication_year"],
+                total_copies=random.randint(2, 20),
+                available_copies=random.randint(0, 20),
+                is_available=True,
+                average_rating=round(random.uniform(2, 5), 1),
+                category_id=category.id
+            )
+        else:
+            # fallback на случай, если n > len(BOOK_DATA)
+            title = random.choice(BOOK_TITLES) + f" {random.randint(1, 100)}"
+            author = random.choice(AUTHORS)
+            category = random.choice(categories)
+            book = Book(
+                title=title,
+                author=author,
+                description=f"{title} — {random.choice(['увлекательная', 'трогательная', 'захватывающая', 'необычная', 'глубокая'])} книга в жанре {category.name}.",
+                isbn=f"978-5-{random.randint(10000,99999)}-{i:03d}",
+                publication_year=random.randint(1950, 2023),
+                total_copies=random.randint(2, 20),
+                available_copies=random.randint(0, 20),
+                is_available=True,
+                average_rating=round(random.uniform(2, 5), 1),
+                category_id=category.id
+            )
         books.append(book)
         session.add(book)
     session.commit()
@@ -235,7 +263,7 @@ def main():
         print("Создаём пользователей...")
         users = create_users(session, n=120)
         print("Создаём книги...")
-        books = create_books(session, categories, n=350)
+        books = create_books(session, categories)
         print("Создаём отзывы...")
         create_reviews(session, users, books, n=2500)
         print("Создаём комментарии...")

@@ -35,6 +35,7 @@ interface Review {
     user_id: number
     review_id: number
   }>
+  is_anonymous: boolean
 }
 
 const StarRating = ({ rating }: { rating: number }) => {
@@ -252,7 +253,7 @@ export default function ForumPage() {
                         <p className="text-gray-700 whitespace-pre-line line-clamp-2">{review.content}</p>
                       </div>
                       <div className="mt-4 flex items-center justify-between text-sm text-gray-500">
-                        <span>Автор: {userCache[review.user_id]?.username || 'Загрузка...'}</span>
+                        <span>Автор: {review.is_anonymous ? 'Аноним' : (userCache[review.user_id]?.username || 'Загрузка...')}</span>
                         <span>{formatDate(review.created_at)}</span>
                       </div>
                     </CardContent>

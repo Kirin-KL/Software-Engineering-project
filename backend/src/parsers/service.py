@@ -1,247 +1,244 @@
-from typing import List, Optional, Dict
+from typing import List, Optional, Tuple
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
-import aiohttp
-import asyncio
-from bs4 import BeautifulSoup
-from src.parsers.models import BookPrice
-from src.parsers.schemas import BookPriceCreate, BookPriceResponse, BookPricesResponse
-from src.service.base import BaseService
+from .schemas import BookParsed
 from src.books.models import Book
-import urllib.parse
-import logging
-import random
-import brotli
+from .ParceBookPage import parsing_book24_bestseller, get_html_book24_page, get_links_to_the_book, extract_book_info_from_html_Giga
+from src.parsers.models import BookPrice
+from sqlalchemy.exc import IntegrityError
 import json
+from datetime import datetime
 
-# Настройка логирования
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+async def book_exists(isbn: str, db: AsyncSession) -> bool:
+    if not isbn:
+        return False
+    result = await db.execute(select(Book).where(Book.isbn == isbn))
+    return result.scalar_one_or_none() is not None
 
-class ParserService(BaseService):
-    """Сервис для парсинга цен на книги."""
-    
-    def __init__(self):
-        super().__init__(BookPrice)
-        self.platforms = {
-            "ozon": "https://www.ozon.ru/search/?text={title}",
-            "wildberries": "https://www.wildberries.ru/catalog/0/search.aspx?search={title}",
-            "chitai_gorod": "https://www.chitai-gorod.ru/search?phrase={title}",
-            "yandex_market": "https://market.yandex.ru/search?text={title}"
-        }
-        
-        # Список User-Agent для ротации
-        self.user_agents = [
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36',
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0',
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15'
-        ]
+async def preview_books() -> Tuple[List[str], int]:
+    """
+    Возвращает список уникальных ссылок на книги и их максимальное количество.
+    """
+    links = parsing_book24_bestseller()
+    unique_links = []
+    seen = set()
+    for title, url in links:
+        if url not in seen:
+            unique_links.append(url)
+            seen.add(url)
+    return unique_links, len(unique_links)
 
-    def _get_headers(self) -> Dict[str, str]:
-        """Получение случайных заголовков для запроса."""
-        return {
-            'User-Agent': random.choice(self.user_agents),
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'ru-RU,ru;q=0.8,en-US;q=0.5,en;q=0.3',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-            'Cache-Control': 'max-age=0',
-            'TE': 'Trailers',
-            'DNT': '1',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'none',
-            'Sec-Fetch-User': '?1'
-        }
-
-    async def parse_book_prices(self, db: AsyncSession, book_id: int) -> BookPricesResponse:
-        """Парсинг цен на книгу со всех площадок."""
-        # Получаем книгу
-        stmt = select(Book).where(Book.id == book_id)
-        result = await db.execute(stmt)
-        book = result.scalar_one_or_none()
-        if not book:
-            raise ValueError("Книга не найдена")
-
-        logger.info(f"Начинаем парсинг цен для книги: {book.title} ({book.author})")
-
-        # Удаляем старые цены
-        stmt = delete(BookPrice).where(BookPrice.book_id == book_id)
-        await db.execute(stmt)
+async def parse_and_add_books(links: List[str], db: AsyncSession, count: int) -> Tuple[List[BookParsed], int, int]:
+    """
+    Добавляет первые n уникальных книг из переданных ссылок в БД.
+    """
+    books: List[BookParsed] = []
+    added = 0
+    skipped = 0
+    for url in links:
+        if added >= count:
+            break
+        book_data = get_html_book24_page(url)
+        isbn = book_data.get("isbn")
+        if not isbn or await book_exists(isbn, db):
+            skipped += 1
+            continue
+        new_book = Book(
+            title=book_data.get("title"),
+            author=book_data.get("author"),
+            description=book_data.get("description"),
+            isbn=isbn,
+            publication_year=book_data.get("publication_year"),
+            image_url=book_data.get("url_image"),
+        )
+        db.add(new_book)
         await db.commit()
+        await db.refresh(new_book)
+        books.append(BookParsed(**book_data))
+        added += 1
+    return books, added, skipped
 
-        # Формируем поисковый запрос из названия и автора
-        search_query = f"{book.title} {book.author}"
-        encoded_query = urllib.parse.quote(search_query)
-        logger.info(f"Поисковый запрос: {search_query}")
+async def parse_and_save_prices_for_book(book_id: int, db: AsyncSession) -> int:
+    """
+    Парсит цены для книги по её id (использует isbn) и сохраняет их в таблицу book_prices.
+    Если цены уже существуют для данной платформы, они обновляются.
+    Возвращает количество добавленных/обновленных цен.
+    """
+    print(f"Начинаем парсинг цен для книги ID: {book_id}")
+    
+    # Получаем книгу
+    result = await db.execute(select(Book).where(Book.id == book_id))
+    book = result.scalar_one_or_none()
+    
+    if not book:
+        print(f"Книга с ID {book_id} не найдена")
+        return 0
+        
+    if not book.isbn:
+        print(f"У книги с ID {book_id} нет ISBN")
+        return 0
+    
+    print(f"Найдена книга: {book.title}, ISBN: '{book.isbn}'")
 
-        # Парсим цены со всех площадок
-        tasks = []
-        for platform, url_template in self.platforms.items():
-            url = url_template.format(title=encoded_query)
-            logger.info(f"Парсинг {platform}: {url}")
-            tasks.append(self._parse_platform_price(platform, url, book_id))
-            # Добавляем небольшую задержку между запросами
-            await asyncio.sleep(2)
+    # Получаем HTML с ценами через get_links_to_the_book
+    print(f"Вызываем get_links_to_the_book с ISBN: '{book.isbn}'")
+    html = get_links_to_the_book(book.isbn)
+    
+    print(f"Получен HTML длиной: {len(html) if html else 0}")
+    
+    # Проверяем, что HTML не пустой
+    if not html:
+        print(f"Не удалось получить HTML для парсинга цен книги {book_id} (ISBN: {book.isbn})")
+        return 0
+    
+    # Извлекаем информацию о ценах через extract_book_info_from_html_Giga
+    try:
+        print("Вызываем extract_book_info_from_html_Giga...")
+        prices_json = extract_book_info_from_html_Giga(html)
+        print(f"Получен JSON от GigaChat: {prices_json}")
+        
+        prices_data = json.loads(prices_json)
+        print(f"Распарсенный JSON: {prices_data}")
+        
+        # Обрабатываем структуру данных от GigaChat
+        if isinstance(prices_data, list):
+            # Если это уже массив объектов, оставляем как есть
+            print(f"Получен массив объектов: {prices_data}")
+        elif isinstance(prices_data, dict) and 'market' in prices_data:
+            # Если есть ключ 'market' с массивом, берем его содержимое
+            if isinstance(prices_data['market'], list):
+                prices_data = prices_data['market']
+                print(f"Извлечен массив market: {prices_data}")
+            else:
+                prices_data = [prices_data]
+        elif isinstance(prices_data, dict):
+            # Если это один объект, оборачиваем в список
+            prices_data = [prices_data]
+            print(f"Преобразовано в список: {prices_data}")
+    except Exception as e:
+        print(f"Ошибка при парсинге цен для книги {book_id}: {e}")
+        return 0
 
-        prices = await asyncio.gather(*tasks)
-        valid_prices = [p for p in prices if p is not None]
-        logger.info(f"Найдено цен: {len(valid_prices)}")
-
-        # Сохраняем цены в базу
-        for price in valid_prices:
-            await self.create(db, price)
-
-        # Формируем ответ
-        return self._create_prices_response(book_id, valid_prices)
-
-    async def _parse_platform_price(self, platform: str, url: str, book_id: int) -> Optional[BookPriceCreate]:
-        """Парсинг цены с конкретной площадки."""
+    added = 0
+    updated = 0
+    print(f"Обрабатываем {len(prices_data)} записей о ценах...")
+    
+    for i, price_info in enumerate(prices_data):
+        print(f"Обрабатываем запись {i+1}: {price_info}")
         try:
-            headers = self._get_headers()
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=headers, timeout=30) as response:
-                    if response.status == 200:
-                        html = await response.text()
-                        logger.info(f"Получен ответ от {platform}, длина HTML: {len(html)}")
-                        
-                        # Сохраняем HTML для отладки
-                        with open(f"debug_{platform}.html", "w", encoding="utf-8") as f:
-                            f.write(html)
-                        
-                        price = await self._extract_price(platform, html)
-                        if price:
-                            logger.info(f"Найдена цена на {platform}: {price}")
-                            return BookPriceCreate(
-                                book_id=book_id,
-                                platform=platform,
-                                price=price,
-                                url=url
-                            )
-                        else:
-                            logger.warning(f"Цена не найдена на {platform}")
-                    else:
-                        logger.warning(f"Ошибка при запросе к {platform}: {response.status}")
-        except Exception as e:
-            logger.error(f"Ошибка при парсинге {platform}: {str(e)}")
-        return None
-
-    async def _extract_price(self, platform: str, html: str) -> Optional[float]:
-        """Извлечение цены из HTML в зависимости от площадки."""
-        soup = BeautifulSoup(html, 'html.parser')
-        
-        try:
-            if platform == "ozon":
-                # Обновленные селекторы для Ozon
-                product = soup.find('div', {'data-widget': 'searchResultsV2Item'}) or \
-                         soup.find('div', {'class': 'tsBody500Medium'})
-                if product:
-                    price_elem = product.find('span', {'data-widget': 'price'}) or \
-                                product.find('span', {'class': 'c0h1'})
-                    if price_elem:
-                        price_text = price_elem.text.strip().replace(' ', '').replace('₽', '')
-                        logger.info(f"Ozon price text: {price_text}")
-                        return float(price_text)
-                    else:
-                        logger.warning("Ozon: price element not found in product")
-                else:
-                    logger.warning("Ozon: product not found")
+            # Обрабатываем цену (убираем " р." и конвертируем в число)
+            price_str = price_info.get('price', '0')
+            if isinstance(price_str, str):
+                price_str = price_str.replace(' р.', '').replace(' ', '').replace(',', '.')
+            try:
+                price = float(price_str)
+            except ValueError:
+                print(f"Не удалось конвертировать цену '{price_str}' в число")
+                continue
             
-            elif platform == "wildberries":
-                # Обновленные селекторы для Wildberries
-                product = soup.find('div', {'class': 'product-card'}) or \
-                         soup.find('div', {'class': 'card'})
-                if product:
-                    price_elem = product.find('span', {'class': 'price-block__price'}) or \
-                                product.find('span', {'class': 'price'})
-                    if price_elem:
-                        price_text = price_elem.text.strip().replace(' ', '').replace('₽', '')
-                        logger.info(f"Wildberries price text: {price_text}")
-                        return float(price_text)
-                    else:
-                        logger.warning("Wildberries: price element not found in product")
-                else:
-                    logger.warning("Wildberries: product not found")
+            platform = price_info.get('market', 'unknown')
+            url = price_info.get('book_url', '')
             
-            elif platform == "chitai_gorod":
-                # Обновленные селекторы для Читай-город
-                products = soup.find_all('div', {'class': 'product-card'}) or \
-                          soup.find_all('div', {'class': 'product'}) or \
-                          soup.find_all('div', {'class': 'product-item'})
-                
-                logger.info(f"Chitai-gorod: найдено {len(products)} продуктов")
-                
-                for product in products:
-                    # Логируем структуру продукта для отладки
-                    logger.info(f"Chitai-gorod product structure: {product.prettify()[:500]}")
-                    
-                    price_elem = product.find('div', {'class': 'product-price'}) or \
-                                product.find('span', {'class': 'price'}) or \
-                                product.find('div', {'class': 'price'}) or \
-                                product.find('div', {'class': 'product-price__value'})
-                    
-                    if price_elem:
-                        price_text = price_elem.text.strip().replace(' ', '').replace('₽', '')
-                        logger.info(f"Chitai-gorod price text: {price_text}")
-                        return float(price_text)
-                    else:
-                        logger.warning("Chitai-gorod: price element not found in product")
-                
-                logger.warning("Chitai-gorod: no products with prices found")
+            # Обрабатываем URL (если это редирект, извлекаем реальный URL)
+            if url.startswith('/redir/book?url='):
+                import urllib.parse
+                try:
+                    # Декодируем URL из параметра
+                    encoded_url = url.replace('/redir/book?url=', '')
+                    decoded_url = urllib.parse.unquote(encoded_url)
+                    # Извлекаем реальный URL из параметра ulp
+                    if 'ulp=' in decoded_url:
+                        ulp_start = decoded_url.find('ulp=') + 4
+                        ulp_end = decoded_url.find('&', ulp_start)
+                        if ulp_end == -1:
+                            ulp_end = len(decoded_url)
+                        real_url = urllib.parse.unquote(decoded_url[ulp_start:ulp_end])
+                        url = real_url
+                except Exception as e:
+                    print(f"Ошибка при обработке URL: {e}")
             
-            elif platform == "yandex_market":
-                # Обновленные селекторы для Яндекс.Маркет
-                products = soup.find_all('div', {'class': '_1Jj8d'}) or \
-                          soup.find_all('div', {'class': 'product'}) or \
-                          soup.find_all('div', {'class': 'cia-cs'}) or \
-                          soup.find_all('div', {'class': 'cia-vs'})
-                
-                logger.info(f"Yandex Market: найдено {len(products)} продуктов")
-                
-                for product in products:
-                    # Логируем структуру продукта для отладки
-                    logger.info(f"Yandex Market product structure: {product.prettify()[:500]}")
-                    
-                    price_elem = product.find('span', {'class': '_1Jj8d'}) or \
-                                product.find('span', {'class': 'price'}) or \
-                                product.find('span', {'class': 'cia-cs'}) or \
-                                product.find('span', {'class': 'cia-vs'}) or \
-                                product.find('div', {'class': 'cia-cs'})
-                    
-                    if price_elem:
-                        price_text = price_elem.text.strip().replace(' ', '').replace('₽', '')
-                        logger.info(f"Yandex Market price text: {price_text}")
-                        return float(price_text)
-                    else:
-                        logger.warning("Yandex Market: price element not found in product")
-                
-                logger.warning("Yandex Market: no products with prices found")
-        
-        except (ValueError, AttributeError) as e:
-            logger.error(f"Ошибка при извлечении цены с {platform}: {str(e)}")
-            return None
-        
-        return None
-
-    def _create_prices_response(self, book_id: int, prices: List[BookPriceCreate]) -> BookPricesResponse:
-        """Создание ответа с информацией о ценах."""
-        if not prices:
-            return BookPricesResponse(
-                book_id=book_id,
-                prices=[],
-                min_price=0,
-                max_price=0,
-                average_price=0
+            print(f"Извлеченные данные: price={price}, platform={platform}, url={url}")
+            
+            if not price or not platform or not url:
+                print(f"Пропускаем запись {i+1}: неполные данные")
+                continue
+            
+            # Проверяем, есть ли уже цена для этой платформы
+            existing_price_result = await db.execute(
+                select(BookPrice).where(
+                    BookPrice.book_id == book_id,
+                    BookPrice.platform == platform
+                )
             )
+            existing_price = existing_price_result.scalar_one_or_none()
+            
+            if existing_price:
+                # Обновляем существующую цену
+                existing_price.price = price
+                existing_price.url = url
+                existing_price.updated_at = datetime.utcnow()
+                await db.commit()
+                updated += 1
+                print(f"Обновлена цена для {platform}: {price} руб.")
+            else:
+                # Создаем новую цену
+                new_price = BookPrice(
+                    book_id=book_id,
+                    platform=platform,
+                    price=price,
+                    url=url
+                )
+                db.add(new_price)
+                await db.commit()
+                added += 1
+                print(f"Добавлена новая цена для {platform}: {price} руб.")
+                
+        except (ValueError, IntegrityError, Exception) as e:
+            await db.rollback()
+            print(f"Ошибка при сохранении цены для книги {book_id}: {e}")
+            continue
+            
+    print(f"Всего добавлено новых цен: {added}, обновлено существующих: {updated}")
+    return added + updated
 
-        price_values = [p.price for p in prices]
-        return BookPricesResponse(
-            book_id=book_id,
-            prices=[BookPriceResponse.model_validate(p) for p in prices],
-            min_price=min(price_values),
-            max_price=max(price_values),
-            average_price=sum(price_values) / len(price_values)
-        ) 
+async def parse_and_save_prices_for_all_books(db: AsyncSession) -> dict:
+    """
+    Парсит цены для всех книг в базе данных.
+    Возвращает статистику по парсингу.
+    """
+    print("Начинаем массовый парсинг цен для всех книг...")
+    
+    # Получаем все книги с ISBN
+    result = await db.execute(select(Book).where(Book.isbn.isnot(None)))
+    books = result.scalars().all()
+    
+    print(f"Найдено книг с ISBN: {len(books)}")
+    
+    total_processed = 0
+    total_added = 0
+    total_updated = 0
+    total_errors = 0
+    
+    for book in books:
+        try:
+            print(f"Обрабатываем книгу {book.id}: {book.title} (ISBN: {book.isbn})")
+            result = await parse_and_save_prices_for_book(book.id, db)
+            # Примечание: parse_and_save_prices_for_book теперь возвращает общее количество
+            # Для более детальной статистики можно было бы изменить её, чтобы она возвращала словарь
+            total_added += result
+            total_processed += 1
+            print(f"Для книги {book.id} обработано цен: {result}")
+        except Exception as e:
+            print(f"Ошибка при парсинге цен для книги {book.id}: {e}")
+            total_errors += 1
+            continue
+    
+    result = {
+        "total_books": len(books),
+        "processed": total_processed,
+        "added": total_added,
+        "errors": total_errors
+    }
+    
+    print(f"Массовый парсинг завершен. Результат: {result}")
+    return result

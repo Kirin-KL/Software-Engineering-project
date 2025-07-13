@@ -6,6 +6,9 @@ from src.auth.dependencies import get_current_user
 from src.auth.models import User
 from src.database import get_db
 from . import schemas, service
+from src.books.schemas import BookPriceResponse
+from src.parsers.models import BookPrice
+from sqlalchemy.future import select
 
 router = APIRouter(
     tags=["books"]
@@ -118,3 +121,9 @@ async def remove_book_image(
         image_url=updated_book.image_url,
         updated_at=updated_book.updated_at
     ) 
+
+@router.get("/{book_id}/prices", response_model=List[BookPriceResponse])
+async def get_book_prices(book_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(BookPrice).where(BookPrice.book_id == book_id))
+    prices = result.scalars().all()
+    return prices 

@@ -194,7 +194,7 @@ export default function DashboardPage() {
                       <div className="w-16 h-20 rounded overflow-hidden flex-shrink-0">
                         {book.image_url ? (
                           <img 
-                            src={`/books/${book.image_url}`}
+                            src={book.image_url.startsWith('http') ? book.image_url : `/books/${book.image_url}`}
                             alt={`Обложка книги ${book.title}`}
                             className="w-full h-full object-cover"
                           />
@@ -255,7 +255,7 @@ export default function DashboardPage() {
                     <div className="w-full h-48 rounded mb-3 overflow-hidden">
                       {book.image_url ? (
                         <img 
-                          src={`/books/${book.image_url}`}
+                          src={book.image_url.startsWith('http') ? book.image_url : `/books/${book.image_url}`}
                           alt={`Обложка книги ${book.title}`}
                           className="w-full h-full object-cover"
                         />

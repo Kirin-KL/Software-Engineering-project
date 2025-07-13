@@ -4,12 +4,67 @@ from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.exc import IntegrityError
+import aiohttp
+import os
 
 from src.database import async_session_maker
 from src.service.base import BaseService
 from .models import Review, ReviewComment
 from .schemas import ReviewCreate, ReviewUpdate, ReviewCommentCreate, ReviewCommentUpdate
 from src.books.models import Book
+
+YANDEXGPT_API_KEY = os.environ.get("YANDEXGPT_API_KEY")
+YANDEXGPT_CATALOG_ID = os.environ.get("YANDEXGPT_CATALOG_ID")
+
+async def check_toxicity_yandexgpt(text: str) -> bool:
+    """
+    Проверяет текст на токсичность через YandexGPT. Возвращает True, если токсичен.
+    """
+    if not YANDEXGPT_API_KEY or not YANDEXGPT_CATALOG_ID:
+        raise RuntimeError("YANDEXGPT_API_KEY и/или YANDEXGPT_CATALOG_ID не заданы в переменных окружения!")
+    url = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
+    headers = {
+        "Authorization": f"Api-Key {YANDEXGPT_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    prompt = f"Проверь этот текст на токсичность. Ответь только 'TOXIC' если он токсичен, иначе 'OK'. Текст: {text}"
+    data = {
+        "modelUri": f"gpt://{YANDEXGPT_CATALOG_ID}/yandexgpt/latest",
+        "completionOptions": {"stream": False, "temperature": 0.1, "maxTokens": 20},
+        "messages": [{"role": "user", "text": prompt}]
+    }
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, headers=headers, json=data) as resp:
+            result = await resp.json()
+            answer = result.get("result", {}).get("alternatives", [{}])[0].get("message", {}).get("text", "")
+            return "TOXIC" in answer.upper()
+
+async def check_text_yandexgpt(text: str, book_title: str, book_author: str = "", book_description: str = "") -> str:
+    if not YANDEXGPT_API_KEY or not YANDEXGPT_CATALOG_ID:
+        raise RuntimeError("YANDEXGPT_API_KEY и/или YANDEXGPT_CATALOG_ID не заданы в переменных окружения!")
+    url = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
+    headers = {
+        "Authorization": f"Api-Key {YANDEXGPT_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    prompt = (
+        f"Проверь этот текст на токсичность и на соответствие теме книги. "
+        f"Книга: '{book_title}', автор: {book_author}. Описание: {book_description}. "
+        f"Если текст токсичен — ответь только 'TOXIC'. "
+        f"Если текст не по теме книги — ответь только 'OFFTOP'. "
+        f"Если всё нормально — ответь только 'OK'. "
+        f"Текст: {text}"
+    )
+    data = {
+        "modelUri": f"gpt://{YANDEXGPT_CATALOG_ID}/yandexgpt/latest",
+        "completionOptions": {"stream": False, "temperature": 0.1, "maxTokens": 20},
+        "messages": [{"role": "user", "text": prompt}]
+    }
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, headers=headers, json=data) as resp:
+            result = await resp.json()
+            answer = result.get("result", {}).get("alternatives", [{}])[0].get("message", {}).get("text", "")
+            return answer.strip().upper()
 
 class ReviewService(BaseService):
     model = Review
@@ -33,13 +88,37 @@ class ReviewService(BaseService):
         """Создать новый отзыв."""
         async with async_session_maker() as session:
             try:
-                # Проверяем существование книги
+                # Проверка токсичности и оффтопа
                 book = await session.get(Book, review_data.book_id)
                 if not book:
                     raise HTTPException(
                         status_code=status.HTTP_404_NOT_FOUND,
                         detail="Книга не найдена"
                     )
+                check_result = await check_text_yandexgpt(
+                    review_data.content,
+                    book.title,
+                    book.author,
+                    getattr(book, "description", "")
+                )
+                if check_result == "TOXIC":
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Текст отзыва содержит токсичность. Пожалуйста, исправьте его."
+                    )
+                if check_result == "OFFTOP":
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Текст отзыва не относится к теме книги. Пожалуйста, напишите по теме."
+                    )
+
+                # Проверяем существование книги
+                # book = await session.get(Book, review_data.book_id)
+                # if not book:
+                #     raise HTTPException(
+                #         status_code=status.HTTP_404_NOT_FOUND,
+                #         detail="Книга не найдена"
+                #     )
 
                 # Проверяем, не оставил ли пользователь уже отзыв на эту книгу
                 stmt = select(Review).where(
@@ -55,9 +134,14 @@ class ReviewService(BaseService):
                         detail="Вы уже оставили отзыв на эту книгу"
                     )
 
+                # Получаем данные отзыва, исключая is_anonymous для правильной обработки
+                review_dict = review_data.model_dump()
+                is_anonymous = review_dict.pop('is_anonymous', False)
+                
                 db_review = Review(
-                    **review_data.model_dump(),
-                    user_id=user_id
+                    **review_dict,
+                    user_id=user_id,
+                    is_anonymous=int(is_anonymous)
                 )
                 session.add(db_review)
                 await session.flush()
@@ -213,20 +297,37 @@ class ReviewService(BaseService):
         comment_data: ReviewCommentCreate
     ) -> ReviewComment:
         async with async_session_maker() as session:
-            # Проверяем существование отзыва
-            stmt = select(Review).where(Review.id == review_id)
-            result = await session.execute(stmt)
-            if not result.scalar_one_or_none():
+            # Проверка токсичности и оффтопа
+            review = await session.get(Review, review_id)
+            if not review:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Review not found"
+                )
+            book = await session.get(Book, review.book_id)
+            check_result = await check_text_yandexgpt(
+                comment_data.content,
+                book.title if book else "",
+                book.author if book else "",
+                getattr(book, "description", "") if book else ""
+            )
+            if check_result == "TOXIC":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Текст комментария содержит токсичность. Пожалуйста, исправьте его."
+                )
+            if check_result == "OFFTOP":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Текст комментария не относится к теме книги. Пожалуйста, напишите по теме."
                 )
 
             # Создаем комментарий
             comment = ReviewComment(
                 user_id=user_id,
                 review_id=review_id,
-                content=comment_data.content
+                content=comment_data.content,
+                is_anonymous=int(comment_data.is_anonymous)
             )
             session.add(comment)
             await session.flush()
@@ -262,7 +363,8 @@ class ReviewService(BaseService):
                 )
 
             # Обновляем поля
-            for field, value in comment_data.dict().items():
+            update_data = comment_data.model_dump(exclude_unset=True)
+            for field, value in update_data.items():
                 setattr(comment, field, value)
 
             await session.flush()

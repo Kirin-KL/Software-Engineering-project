@@ -55,6 +55,8 @@ def build_interaction_matrix(interactions):
 def build_item_features(books, book_id_map):
     print('Построение content-based признаков для книг...')
     from sklearn.feature_extraction import DictVectorizer
+    import numpy as np
+
     features = []
     book_index = []
     for _, row in books.iterrows():
@@ -66,15 +68,19 @@ def build_item_features(books, book_id_map):
             book_index.append(book_id_map[row['id']])
     v = DictVectorizer()
     X = v.fit_transform(features)
-    # LightFM требует, чтобы item_features имел shape (n_items, n_features)
-    # Поэтому создаём пустую матрицу и заполняем строки по индексам книг
-    import numpy as np
+
     n_items = len(book_id_map)
+    # Identity features
+    identity = sparse.identity(n_items, format='csr')
+    # Content-based features
     item_features = sparse.lil_matrix((n_items, X.shape[1]))
     for idx, row_idx in enumerate(book_index):
         item_features[row_idx] = X[idx]
-    print(f'  Признаков на книгу: {X.shape[1]}')
-    return item_features.tocsr()
+    item_features = item_features.tocsr()
+    # Объединяем identity и content-based признаки
+    combined = sparse.hstack([identity, item_features], format='csr')
+    print(f'  Признаков на книгу: {combined.shape[1]} (identity + content-based)')
+    return combined
 
 # --- Обучение модели ---
 def train_and_save():
@@ -92,9 +98,12 @@ def train_and_save():
     model = LightFM(loss='warp')
     model.fit(matrix, item_features=item_features, epochs=15, num_threads=2)
     print('Сохранение модели...')
-    with open('model.pkl', 'wb') as f:
+    # Получаем путь к текущей директории скрипта
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    model_path = os.path.join(current_dir, 'model.pkl')
+    with open(model_path, 'wb') as f:
         pickle.dump({'model': model, 'user_id_map': user_id_map, 'book_id_map': book_id_map}, f)
-    print('Готово! Модель сохранена в model.pkl')
+    print(f'Готово! Модель сохранена в {model_path}')
 
 if __name__ == '__main__':
     train_and_save() 

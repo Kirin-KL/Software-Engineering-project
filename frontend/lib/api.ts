@@ -278,6 +278,35 @@ export const api = {
     return response.json()
   },
 
+  async getAllUsers(): Promise<UserData[]> {
+    console.log('Fetching all users...')
+    const token = localStorage.getItem('access_token')
+    
+    if (!token) {
+      throw new Error('Токен доступа не найден')
+    }
+
+    const response = await fetch(`${API_URL}/v1/auth/`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    console.log('Response status:', response.status)
+    if (!response.ok) {
+      console.error('Failed to fetch users:', response.status)
+      if (response.status === 401) {
+        localStorage.removeItem('access_token')
+        throw new Error('Сессия истекла. Пожалуйста, войдите снова.')
+      }
+      throw new Error('Не удалось получить список пользователей')
+    }
+
+    return response.json()
+  },
+
   async getCategories(): Promise<Category[]> {
     console.log('Fetching categories...')
     try {
@@ -838,5 +867,48 @@ export const api = {
     }
 
     return response.json();
+  },
+
+  async retrainRecommendations(): Promise<{ message: string }> {
+    const token = localStorage.getItem('access_token')
+    if (!token) {
+      throw new Error('Токен не найден')
+    }
+
+    const response = await fetch(`${API_URL}/v1/admin/retrain`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.detail || 'Не удалось обновить рекомендации')
+    }
+
+    return response.json()
+  },
+
+  async getRecommendationMetrics(): Promise<any> {
+    const token = localStorage.getItem('access_token')
+    if (!token) {
+      throw new Error('Токен не найден')
+    }
+
+    const response = await fetch(`${API_URL}/v1/admin/metrics`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.detail || 'Не удалось получить метрики')
+    }
+
+    return response.json()
   }
 } 

@@ -1,10 +1,13 @@
 import pickle
 import numpy as np
+import os
 from src.books.models import Book
 from src.database import SessionLocal
 from sqlalchemy.orm import selectinload
 
-MODEL_PATH = "src/recommender/model.pkl"
+# Получаем абсолютный путь к файлу модели
+current_dir = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(current_dir, "model.pkl")
 
 def get_recommendations_for_user(user_id: int, n: int = 5):
     # Загружаем модель и маппинги

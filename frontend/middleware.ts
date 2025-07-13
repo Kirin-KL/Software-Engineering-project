@@ -5,7 +5,6 @@ import type { NextRequest } from 'next/server'
 const publicRoutes = ['/', '/register', '/admin/login']
 
 export function middleware(request: NextRequest) {
-  const token = request.cookies.get('access_token')
   const { pathname } = request.nextUrl
 
   // Если маршрут публичный, пропускаем
@@ -13,24 +12,17 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Если нет токена и маршрут не публичный, перенаправляем на страницу входа
-  if (!token && !publicRoutes.includes(pathname)) {
-    const url = new URL('/', request.url)
-    url.searchParams.set('from', pathname)
-    return NextResponse.redirect(url)
+  // Для админ-маршрутов проверяем токен в cookies
+  if (pathname.startsWith('/admin') && pathname !== '/admin/login') {
+    const token = request.cookies.get('access_token')
+    
+    if (!token) {
+      const url = new URL('/admin/login', request.url)
+      return NextResponse.redirect(url)
+    }
   }
 
-  // Если есть токен, добавляем его в заголовки для API запросов
-  const requestHeaders = new Headers(request.headers)
-  if (token) {
-    requestHeaders.set('Authorization', `Bearer ${token.value}`)
-  }
-
-  return NextResponse.next({
-    request: {
-      headers: requestHeaders,
-    },
-  })
+  return NextResponse.next()
 }
 
 // Указываем, для каких маршрутов применять middleware

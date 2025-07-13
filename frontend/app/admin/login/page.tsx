@@ -65,6 +65,10 @@ export default function AdminLoginPage() {
       // Проверяем только email администратора
       if (email.trim() === "admin@bookbi.ru") {
         console.log('Перенаправление на панель администратора')
+        
+        // Сохраняем токен в cookies для middleware
+        document.cookie = `access_token=${response.access_token}; path=/; max-age=86400; SameSite=Lax`
+        
         // Перенаправляем на панель администратора
         window.location.href = "/admin"
       } else {

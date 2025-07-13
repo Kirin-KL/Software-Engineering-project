@@ -50,7 +50,7 @@ async def login_user(response: Response, user_data: SUserAuth) -> dict:
         "access_token",
         access_token,
         httponly=True,
-        secure=True,  # Только для HTTPS
+        secure=False,  # Только для HTTPS
         samesite="lax"  # Защита от CSRF
     )
     

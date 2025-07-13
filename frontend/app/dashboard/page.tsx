@@ -138,28 +138,28 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 latestReviews.map((review) => (
-                  <Link key={review.id} href={`/review/${review.id}`} className="block hover:opacity-90 transition-opacity">
-                    <Card className="p-6">
+                  <Card key={review.id} className="p-6 hover:opacity-90 transition-opacity">
+                    <Link href={`/review/${review.id}`} className="block">
                       <div className="flex items-center space-x-2 mb-4">
                         <Star className="h-5 w-5 fill-yellow-400 text-yellow-400" />
                         <span className="font-semibold">{review.rating.toFixed(1)}</span>
                       </div>
                       <h3 className="font-semibold text-lg mb-2">{review.title}</h3>
                       <p className="text-gray-600 mb-2 line-clamp-3">{review.content}</p>
-                      {review.book && review.book.id && review.book.title && (
-                        <p className="text-sm text-gray-500 mb-4">
-                          Книга: <Link href={`/product/${review.book.id}`} className="text-blue-600 hover:underline">{review.book.title}</Link>
-                        </p>
-                      )}
-                      <div className="flex items-center justify-between text-sm text-gray-500">
-                        <span suppressHydrationWarning>{formatDate(review.created_at)}</span>
-                        <div className="flex items-center space-x-2">
-                          <MessageSquare className="h-4 w-4" />
-                          <span>{review.comments.length}</span>
-                        </div>
+                    </Link>
+                    {review.book && review.book.id && review.book.title && (
+                      <p className="text-sm text-gray-500 mb-4">
+                        Книга: <Link href={`/product/${review.book.id}`} className="text-blue-600 hover:underline">{review.book.title}</Link>
+                      </p>
+                    )}
+                    <div className="flex items-center justify-between text-sm text-gray-500">
+                      <span suppressHydrationWarning>{formatDate(review.created_at)}</span>
+                      <div className="flex items-center space-x-2">
+                        <MessageSquare className="h-4 w-4" />
+                        <span>{review.comments.length}</span>
                       </div>
-                    </Card>
-                  </Link>
+                    </div>
+                  </Card>
                 ))
               )}
             </div>

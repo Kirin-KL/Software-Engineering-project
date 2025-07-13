@@ -53,3 +53,6 @@ async def get_current_user(token: str = Depends(get_token)):
     print(token)
     return await UserService.verify_token(token)
 
+
+
+

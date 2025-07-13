@@ -10,6 +10,8 @@ from src.borrowings.router import router as router_borrowings
 from src.reviews.router import router as router_reviews
 from src.favorite.router import router as router_favorites
 from src.parsers.router import router as router_parsers
+from src.recommender.router import router as recommender_router
+
 import os
 
 app = FastAPI(
@@ -45,6 +47,7 @@ os.makedirs(static_dir, exist_ok=True)
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 # Подключение роутеров
+app.include_router(recommender_router, prefix="/v1")
 app.include_router(router_auth, prefix="/v1/auth", tags=["auth"])
 app.include_router(router_application, prefix="/v1/application", tags=["application"])
 app.include_router(router_books, prefix="/v1/books", tags=["books"])

@@ -3,9 +3,9 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
 from src.parsers.models import BookPrice
-
 from src.database import Base
 from src.categories.models import Category
+
 
 class BookStatus(str, enum.Enum):
     AVAILABLE = "available"
@@ -33,4 +33,4 @@ class Book(Base):
     borrowings = relationship("Borrowing", back_populates="book")
     favorited_by = relationship("Favorites", back_populates="book", cascade="all, delete-orphan")
     reviews = relationship("Review", back_populates="book", cascade="all, delete-orphan")
-    prices = relationship("BookPrice", back_populates="book", cascade="all, delete-orphan") 
+    prices = relationship("src.parsers.models.BookPrice", back_populates="book", cascade="all, delete-orphan")

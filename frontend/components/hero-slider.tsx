@@ -154,7 +154,7 @@ export default function HeroSlider() {
   }
 
   if (reviews.length > 0) {
-    // Слайдер с отзывами (как сейчас)
+    // Слайдер с отзывами
     return (
       <div className="relative overflow-hidden rounded-lg mb-8">
         <h2 className="text-2xl font-bold mb-4 text-gray-900">Лучшие отзывы пользователей</h2>
